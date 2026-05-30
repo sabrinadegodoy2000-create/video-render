@@ -1,0 +1,59 @@
+# ── Subir SÓ o essencial pro render na nuvem ───────────────────────
+# O backend (FastAPI) e o frontend (React) NÃO rodam no GitHub Actions.
+# Só o remotion/ + .github/ + render-job.json são necessários.
+backend/
+frontend/
+
+# Dependências
+node_modules/
+**/node_modules/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ── SEGREDOS — NUNCA subir pro GitHub ──────────────────────────────
+.env
+.env.*
+*.env
+**/.env
+**/.env.*
+backend/vertex_ai_key.json
+backend/*secret*.json
+backend/*client_secret*.json
+backend/*token*.json
+backend/yt_*.json
+**/service-account*.json
+**/credentials*.json
+*.pem
+*.p12
+
+# Repo git aninhado (compositions antigas) — não faz parte do projeto
+frontend/remotion_lab/
+
+# Mídias e saídas pesadas do backend (NÃO vão pro GitHub)
+backend/uploads/
+backend/outputs/
+backend/library/
+backend/plans/
+backend/jobs.json
+
+# Build do frontend
+frontend/dist/
+frontend/.vite/
+
+# Remotion
+remotion/out/
+remotion/.remotion/
+
+# Mídias baixadas/preparadas durante o render na nuvem
+render-media/
+props.json
+floating-phone-output.mp4
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.log

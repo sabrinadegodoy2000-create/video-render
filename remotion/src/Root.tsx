@@ -1,0 +1,394 @@
+import { Composition, staticFile } from "remotion";
+import { DynamicVideo } from "./DynamicVideo";
+import type { DynamicVideoPlan } from "./DynamicVideoTypes";
+import { VideoComposition, VideoCompositionProps } from "./VideoComposition";
+import { TextShowcase } from "./TextShowcase";
+import {
+  TransitionShowcase,
+  TRANSITION_SHOWCASE_DURATION,
+} from "./TransitionShowcase";
+import {
+  LowerThirdShowcase,
+  LOWER_THIRD_SHOWCASE_DURATION,
+} from "./LowerThirdShowcase";
+import {
+  NarrationShowcase,
+  NARRATION_SHOWCASE_DURATION,
+} from "./NarrationShowcase";
+import {
+  TextMaskShowcase,
+  TEXT_MASK_SHOWCASE_DURATION,
+} from "./TextMaskShowcase";
+import {
+  CardsShowcase,
+  CARDS_SHOWCASE_DURATION,
+} from "./CardsShowcase";
+import {
+  HighlightShowcase,
+  HIGHLIGHT_SHOWCASE_DURATION,
+} from "./HighlightShowcase";
+import {
+  SplitTextMediaShowcase,
+  SPLIT_TEXT_MEDIA_SHOWCASE_DURATION,
+} from "./SplitTextMediaShowcase";
+import {
+  WordCascadeShowcase,
+  WORD_CASCADE_SHOWCASE_DURATION,
+} from "./WordCascadeShowcase";
+import {
+  TriplePanelShowcase,
+  TRIPLE_PANEL_SHOWCASE_DURATION,
+} from "./TriplePanelShowcase";
+import { MediaTextHalfShowcase } from "./components/MediaTextHalfShowcase";
+import { MediaRiseTitleShowcase } from "./components/MediaRiseTitleShowcase";
+import { InstaFeedShowcase } from "./components/InstaFeedShowcase";
+import { NeonRiseShowcase } from "./components/NeonRiseShowcase";
+import { PortraitShowcase } from "./PortraitShowcase";
+import { CardSpreadShowcase } from "./components/CardSpreadShowcase";
+import { SplitExpandRevealShowcase } from "./SplitExpandRevealShowcase";
+import { QuadGridShowcase } from "./components/QuadGridShowcase";
+import { HostPIPShowcase } from "./components/HostPIPShowcase";
+import { NewsCoverShowcase } from "./components/NewsCoverShowcase";
+import { SourcesCardShowcasePT, SourcesCardShowcaseIT } from "./components/SourcesCardShowcase";
+import { SOURCES_CARD_DURATION } from "./components/SourcesCard";
+import { FloatingPhoneShowcase, FLOATING_PHONE_DURATION } from "./FloatingPhoneShowcase";
+const FPS = 30;
+
+const DEMO_PROPS: VideoCompositionProps = {
+  totalDurationSec: 24,
+  audioSrc: "",
+  bgMusicSrc: "",
+  bgMusicVolume: 0.08,
+  blocks: [
+    {
+      id: "block_0_0",
+      sceneIdx: 0,
+      blockIdx: 0,
+      startTime: 0,
+      endTime: 12,
+      transition: "fade",
+      transitionDuration: 0.5,
+      segments: [
+        { type: "image", src: staticFile("samples/img1.jpg"), durationSec: 4.0, animation: "ken-burns" },
+        { type: "image", src: staticFile("samples/img2.jpg"), durationSec: 4.0, animation: "zoom-in" },
+        { type: "image", src: staticFile("samples/img3.jpg"), durationSec: 4.0, animation: "pan-left" },
+      ],
+    },
+    {
+      id: "block_0_1",
+      sceneIdx: 0,
+      blockIdx: 1,
+      startTime: 12,
+      endTime: 24,
+      transition: "slide-left",
+      transitionDuration: 0.5,
+      segments: [
+        { type: "image", src: staticFile("samples/img4.jpg"), durationSec: 4.0, animation: "zoom-out" },
+        { type: "image", src: staticFile("samples/img5.jpg"), durationSec: 4.0, animation: "pan-right" },
+        { type: "image", src: staticFile("samples/img6.jpg"), durationSec: 4.0, animation: "ken-burns" },
+      ],
+    },
+  ],
+};
+
+// ── Demo plan para DynamicVideo ──────────────────────────────────────
+const DEMO_DYNAMIC_PLAN: DynamicVideoPlan = {
+  totalDurationSec: 40,
+  blocks: [
+    {
+      id: "b0",
+      startSec: 0,
+      endSec: 12,
+      segments: [
+        { type: "image", src: staticFile("samples/img1.jpg"), durationSec: 4, animation: "ken-burns" },
+        { type: "image", src: staticFile("samples/img2.jpg"), durationSec: 4, animation: "zoom-in" },
+        { type: "image", src: staticFile("samples/img3.jpg"), durationSec: 4, animation: "pan-left" },
+      ],
+      transition: { type: "zoom-through", durationSec: 1 },
+    },
+    {
+      id: "b1",
+      startSec: 12,
+      endSec: 24,
+      segments: [
+        { type: "image", src: staticFile("samples/img4.jpg"), durationSec: 4, animation: "zoom-out" },
+        { type: "image", src: staticFile("samples/img5.jpg"), durationSec: 4, animation: "pan-right" },
+        { type: "image", src: staticFile("samples/img6.jpg"), durationSec: 4, animation: "ken-burns" },
+      ],
+      transition: { type: "whip-pan", durationSec: 1 },
+    },
+    {
+      id: "b2",
+      startSec: 24,
+      endSec: 40,
+      segments: [
+        { type: "image", src: staticFile("samples/img1.jpg"), durationSec: 4, animation: "ken-burns" },
+        { type: "image", src: staticFile("samples/img3.jpg"), durationSec: 4, animation: "zoom-in" },
+        { type: "image", src: staticFile("samples/img5.jpg"), durationSec: 4, animation: "pan-right" },
+        { type: "image", src: staticFile("samples/img2.jpg"), durationSec: 4, animation: "zoom-out" },
+      ],
+    },
+  ],
+  overlays: [
+    {
+      type: "lower-third",
+      startSec: 2,
+      durationSec: 4,
+      style: "sports-bar",
+      title: "HAMILTON VENCE NA FERRARI",
+      subtitle: "Primeira vitória com a Scuderia",
+      primaryColor: "#dc2626",
+    },
+    {
+      type: "animated-text",
+      startSec: 14,
+      durationSec: 4,
+      text: "A nova era começa agora",
+      animationStyle: "word-by-word",
+      color: "white",
+      backgroundColor: "rgba(0,0,0,0.7)",
+      position: "center",
+    },
+  ],
+  specialEffects: [
+    {
+      type: "big-text",
+      startSec: 7,
+      durationSec: 3,
+      text: "2026",
+      fontSize: 400,
+      animation: "scale-up",
+      bgSrc: staticFile("samples/img4.jpg"),
+    },
+  ],
+};
+
+export const RemotionRoot: React.FC = () => {
+  return (
+    <>
+      {/* ── Composição principal (backend usa essa) ── */}
+      <Composition
+        id="DynamicVideo"
+        component={DynamicVideo as any}
+        durationInFrames={FPS * 60}
+        fps={FPS}
+        width={1920}
+        height={1080}
+        defaultProps={DEMO_DYNAMIC_PLAN}
+        calculateMetadata={({ props }) => ({
+          durationInFrames: Math.ceil((props as any).totalDurationSec * ((props as any).fps || FPS)),
+          fps: (props as any).fps || FPS,
+          width: (props as any).width || 1920,
+          height: (props as any).height || 1080,
+        })}
+      />
+
+      {/* ── Composição legada ── */}
+      <Composition
+        id="MainVideo"
+        component={VideoComposition as any}
+        durationInFrames={FPS * 60}
+        fps={FPS}
+        width={1920}
+        height={1080}
+        defaultProps={DEMO_PROPS}
+        calculateMetadata={({ props }) => ({
+          durationInFrames: Math.ceil((props as any).totalDurationSec * FPS),
+        })}
+      />
+      <Composition
+        id="TextShowcase"
+        component={TextShowcase}
+        durationInFrames={FPS * 20}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="TransitionShowcase"
+        component={TransitionShowcase}
+        durationInFrames={TRANSITION_SHOWCASE_DURATION}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="LowerThirdShowcase"
+        component={LowerThirdShowcase}
+        durationInFrames={LOWER_THIRD_SHOWCASE_DURATION}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="NarrationShowcase"
+        component={NarrationShowcase}
+        durationInFrames={NARRATION_SHOWCASE_DURATION}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="TextMaskShowcase"
+        component={TextMaskShowcase}
+        durationInFrames={TEXT_MASK_SHOWCASE_DURATION}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="CardsShowcase"
+        component={CardsShowcase}
+        durationInFrames={CARDS_SHOWCASE_DURATION}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="HighlightShowcase"
+        component={HighlightShowcase}
+        durationInFrames={HIGHLIGHT_SHOWCASE_DURATION}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="SplitTextMediaShowcase"
+        component={SplitTextMediaShowcase}
+        durationInFrames={SPLIT_TEXT_MEDIA_SHOWCASE_DURATION}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="WordCascadeShowcase"
+        component={WordCascadeShowcase}
+        durationInFrames={WORD_CASCADE_SHOWCASE_DURATION}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="TriplePanelShowcase"
+        component={TriplePanelShowcase}
+        durationInFrames={TRIPLE_PANEL_SHOWCASE_DURATION}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="MediaTextHalfShowcase"
+        component={MediaTextHalfShowcase}
+        durationInFrames={90}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="MediaRiseTitleShowcase"
+        component={MediaRiseTitleShowcase}
+        durationInFrames={90}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="InstaFeedShowcase"
+        component={InstaFeedShowcase}
+        durationInFrames={240}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="NeonRiseShowcase"
+        component={NeonRiseShowcase}
+        durationInFrames={120}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="PortraitShowcase"
+        component={PortraitShowcase}
+        durationInFrames={150}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="CardSpreadShowcase"
+        component={CardSpreadShowcase}
+        durationInFrames={120}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="SplitExpandRevealShowcase"
+        component={SplitExpandRevealShowcase}
+        durationInFrames={150}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="QuadGridShowcase"
+        component={QuadGridShowcase}
+        durationInFrames={120}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="HostPIPShowcase"
+        component={HostPIPShowcase}
+        durationInFrames={150}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="NewsCoverShowcase"
+        component={NewsCoverShowcase}
+        durationInFrames={180}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="SourcesCardPT"
+        component={SourcesCardShowcasePT}
+        durationInFrames={SOURCES_CARD_DURATION}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="SourcesCardIT"
+        component={SourcesCardShowcaseIT}
+        durationInFrames={SOURCES_CARD_DURATION}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="FloatingPhone"
+        component={FloatingPhoneShowcase as any}
+        durationInFrames={FLOATING_PHONE_DURATION}
+        fps={FPS}
+        width={1920}
+        height={1080}
+        defaultProps={{
+          portraitVideoSrc: staticFile("test_portrait.mp4"),
+          logoSrc: staticFile("logo.png"),
+          wideSegments: [{ src: staticFile("test_video.mp4"), type: "video", durationSec: 5 }],
+          durationSec: 5,
+        }}
+        calculateMetadata={({ props }) => ({
+          durationInFrames: Math.ceil((props as any).durationSec * FPS),
+        })}
+      />
+    </>
+  );
+};

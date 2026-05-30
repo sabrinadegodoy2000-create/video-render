@@ -1,0 +1,66 @@
+{
+  "totalDurationSec": 24,
+  "audioSrc": "",
+  "bgMusicSrc": "",
+  "bgMusicVolume": 0.08,
+  "blocks": [
+    {
+      "id": "block_0_0",
+      "sceneIdx": 0,
+      "blockIdx": 0,
+      "startTime": 0,
+      "endTime": 12,
+      "transition": "fade",
+      "transitionDuration": 0.5,
+      "segments": [
+        {
+          "type": "image",
+          "src": "/samples/img1.jpg",
+          "durationSec": 4.0,
+          "animation": "ken-burns"
+        },
+        {
+          "type": "image",
+          "src": "/samples/img2.jpg",
+          "durationSec": 4.0,
+          "animation": "zoom-in"
+        },
+        {
+          "type": "image",
+          "src": "/samples/img3.jpg",
+          "durationSec": 4.0,
+          "animation": "pan-left"
+        }
+      ]
+    },
+    {
+      "id": "block_0_1",
+      "sceneIdx": 0,
+      "blockIdx": 1,
+      "startTime": 12,
+      "endTime": 24,
+      "transition": "slide-left",
+      "transitionDuration": 0.5,
+      "segments": [
+        {
+          "type": "image",
+          "src": "/samples/img4.jpg",
+          "durationSec": 4.0,
+          "animation": "zoom-out"
+        },
+        {
+          "type": "image",
+          "src": "/samples/img5.jpg",
+          "durationSec": 4.0,
+          "animation": "pan-right"
+        },
+        {
+          "type": "image",
+          "src": "/samples/img6.jpg",
+          "durationSec": 4.0,
+          "animation": "ken-burns"
+        }
+      ]
+    }
+  ]
+}

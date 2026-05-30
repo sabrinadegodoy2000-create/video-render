@@ -1,0 +1,15 @@
+{
+  "_comentario": "Defina aqui o que entra no render. Os nomes devem ser EXATAMENTE iguais aos arquivos que você subiu no Release.",
+
+  "portrait": "meu-video-9-16.mp4",
+  "logo": "logo.png",
+
+  "wide": [
+    { "file": "foto1.jpg", "type": "photo" },
+    { "file": "clipe1.mp4", "type": "video" },
+    { "file": "foto2.jpg", "type": "photo" }
+  ],
+
+  "secondsPerItem": 3,
+  "concurrency": 2
+}

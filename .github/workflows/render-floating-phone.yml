@@ -1,0 +1,89 @@
+name: Render FloatingPhone
+
+# Dispara manualmente pela aba "Actions" do GitHub.
+# Informe a TAG do Release que contém as mídias (vídeo 9:16, logo, fotos/vídeos do 16:9).
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag do Release com as mídias (ex: render-001)"
+        required: true
+        type: string
+      concurrency:
+        description: "Núcleos usados no render (1-4). Maior = mais rápido, mais RAM."
+        required: false
+        default: "2"
+        type: string
+
+jobs:
+  render:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 320  # até ~5h20 (limite do GitHub é 6h por job)
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Instalar Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar ffmpeg e dependências do Chrome (Remotion)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg \
+            libnss3 libdbus-1-3 libatk1.0-0 libgbm-dev libasound2 \
+            libxrandr2 libxkbcommon-dev libxfixes3 libxcomposite1 \
+            libxdamage1 libatk-bridge2.0-0 libpango-1.0-0 libcairo2 libcups2
+
+      - name: Instalar dependências do Remotion
+        working-directory: remotion
+        run: npm install
+
+      - name: Baixar mídias do Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p render-media
+          echo "Baixando assets do release '${{ inputs.release_tag }}'..."
+          gh release download "${{ inputs.release_tag }}" \
+            --dir render-media \
+            --pattern '*' \
+            --clobber
+          echo "Mídias baixadas:"
+          ls -lh render-media
+
+      - name: Preparar props (loop + startSec + durações)
+        run: |
+          node .github/scripts/prep-floating-phone-props.mjs \
+            render-job.json \
+            render-media \
+            props.json
+          echo "----- props.json -----"
+          cat props.json
+
+      - name: Renderizar com Remotion (FloatingPhone)
+        working-directory: remotion
+        run: |
+          node render.mjs \
+            --props ../props.json \
+            --output ../floating-phone-output.mp4 \
+            --composition FloatingPhone \
+            --concurrency ${{ inputs.concurrency }}
+
+      - name: Enviar o vídeo final de volta ao Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ inputs.release_tag }}" \
+            floating-phone-output.mp4 \
+            --clobber
+          echo "✅ Vídeo enviado para o release '${{ inputs.release_tag }}'. Baixe em: Releases → ${{ inputs.release_tag }}"
+
+      - name: Guardar também como artifact (backup de download)
+        uses: actions/upload-artifact@v4
+        with:
+          name: floating-phone-output
+          path: floating-phone-output.mp4
+          retention-days: 7

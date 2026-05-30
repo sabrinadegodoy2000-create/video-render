@@ -1,13 +1,8 @@
 {
-  "_comentario": "Os nomes devem ser EXATAMENTE iguais aos arquivos subidos no Release.",
+  "_comentario": "Defina só o portrait e o logo. TODAS as outras mídias do Release viram automaticamente o conteúdo 16:9 — não precisa listar uma por uma.",
 
   "portrait": "teste-eu-video.mp4",
   "logo": "logo-estranho.png",
-
-  "wide": [
-    { "file": "YTDown_YouTube_Race-Highlights-2026-Canadian-Grand-Prix_Media_QrRh2vOJQbw_001_1080p-Cena-002.mp4", "type": "video" },
-    { "file": "YTDown_YouTube_Race-Highlights-2026-Canadian-Grand-Prix_Media_QrRh2vOJQbw_001_1080p-Cena-026.mp4", "type": "video" }
-  ],
 
   "secondsPerItem": 3,
   "concurrency": 2

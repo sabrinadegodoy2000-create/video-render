@@ -73,7 +73,34 @@ if (!totalDuration) {
 console.log(`[PREP] Vídeo 9:16: ${path.basename(portraitPath)} — ${totalDuration}s`);
 
 // ── Mídias do 16:9 ───────────────────────────────────────────────
-const wideInput = Array.isArray(job.wide) ? job.wide : [];
+// Se "wide" não estiver definido no JSON, auto-detecta tudo na pasta
+// que não seja o portrait nem o logo.
+const VIDEO_EXTS = new Set([".mp4", ".mov", ".mkv", ".webm", ".avi"]);
+const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"]);
+
+let wideInput = Array.isArray(job.wide) ? job.wide : null;
+
+if (!wideInput) {
+  const reserved = new Set([
+    path.basename(job.portrait),
+    path.basename(job.logo),
+    "floating-phone-output.mp4",
+  ]);
+  const allFiles = fs.readdirSync(mediaDir).filter((f) => {
+    if (reserved.has(f)) return false;
+    const ext = path.extname(f).toLowerCase();
+    return VIDEO_EXTS.has(ext) || IMAGE_EXTS.has(ext);
+  });
+  if (allFiles.length === 0) {
+    throw new Error(
+      "Nenhuma mídia encontrada para o 16:9. Suba imagens/vídeos no Release além do portrait e do logo."
+    );
+  }
+  wideInput = allFiles.sort(); // ordem alfabética (previsível)
+  console.log(`[PREP] Auto-detectadas ${wideInput.length} mídia(s) para o 16:9:`);
+  wideInput.forEach((f) => console.log(`  - ${f}`));
+}
+
 if (wideInput.length === 0) {
   throw new Error('render-job.json: a lista "wide" (mídias do 16:9) está vazia.');
 }
@@ -85,7 +112,7 @@ const base = wideInput.map((entry, i) => {
   const ext = path.extname(absPath).toLowerCase();
   const isVideo =
     (typeof entry === "object" && entry.type === "video") ||
-    [".mp4", ".mov", ".mkv", ".webm", ".avi"].includes(ext);
+    VIDEO_EXTS.has(ext);
   return {
     absPath,
     type: isVideo ? "video" : "photo",

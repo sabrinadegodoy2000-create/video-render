@@ -60,7 +60,7 @@ export const FloatingPhoneShowcase: React.FC<FloatingPhoneProps> = ({
   const wideImgScale = interpolate(frame, [0, totalFrames], [1.0, 1.08], { extrapolateRight: "clamp" });
 
   return (
-    <div style={{ width: 1920, height: 1080, background: "#000000", position: "relative" }}>
+    <div style={{ width: 1920, height: 1080, background: "#ffffff", position: "relative" }}>
       {/* Logo — canto superior esquerdo */}
       <Img
         src={logoSrc}

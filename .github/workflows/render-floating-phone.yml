@@ -10,7 +10,7 @@ on:
         required: true
         type: string
       concurrency:
-        description: "Núcleos usados no render (1-4). Maior = mais rápido, mais RAM."
+        description: "Núcleos usados no render (1-2). O runner gratuito do GitHub tem 2 núcleos."
         required: false
         default: "2"
         type: string

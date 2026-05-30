@@ -1,13 +1,12 @@
 {
-  "_comentario": "Defina aqui o que entra no render. Os nomes devem ser EXATAMENTE iguais aos arquivos que você subiu no Release.",
+  "_comentario": "Os nomes devem ser EXATAMENTE iguais aos arquivos subidos no Release.",
 
-  "portrait": "meu-video-9-16.mp4",
-  "logo": "logo.png",
+  "portrait": "teste-eu-video.mp4",
+  "logo": "logo-estranho.png",
 
   "wide": [
-    { "file": "foto1.jpg", "type": "photo" },
-    { "file": "clipe1.mp4", "type": "video" },
-    { "file": "foto2.jpg", "type": "photo" }
+    { "file": "YTDown_YouTube_Race-Highlights-2026-Canadian-Grand-Prix_Media_QrRh2vOJQbw_001_1080p-Cena-002.mp4", "type": "video" },
+    { "file": "YTDown_YouTube_Race-Highlights-2026-Canadian-Grand-Prix_Media_QrRh2vOJQbw_001_1080p-Cena-026.mp4", "type": "video" }
   ],
 
   "secondsPerItem": 3,

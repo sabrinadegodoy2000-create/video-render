@@ -382,7 +382,9 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={{
           portraitVideoSrc: staticFile("test_portrait.mp4"),
           logoSrc: staticFile("logo.png"),
-          wideSegments: [{ src: staticFile("test_video.mp4"), type: "video", durationSec: 5 }],
+          wideSegments: [
+            { src: staticFile("test_video.mp4"), type: "video", durationSec: 5 },
+          ],
           durationSec: 5,
         }}
         calculateMetadata={({ props }) => ({

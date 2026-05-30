@@ -15,6 +15,9 @@ on:
         default: "2"
         type: string
 
+permissions:
+  contents: write  # necessário pro GITHUB_TOKEN enviar o vídeo de volta ao Release
+
 jobs:
   render:
     runs-on: ubuntu-22.04
@@ -82,6 +85,7 @@ jobs:
           echo "✅ Vídeo enviado para o release '${{ inputs.release_tag }}'. Baixe em: Releases → ${{ inputs.release_tag }}"
 
       - name: Guardar também como artifact (backup de download)
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: floating-phone-output

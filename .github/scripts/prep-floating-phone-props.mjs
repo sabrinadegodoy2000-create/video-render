@@ -120,15 +120,20 @@ const base = wideInput.map((entry, i) => {
   };
 });
 
-// ── Loop para preencher a duração total ──────────────────────────
+// ── Loop para preencher a FASE 2 ─────────────────────────────────
+// O vídeo principal ocupa a tela cheia nos primeiros PHASE1_SEC segundos.
+// As imagens/vídeos do 16:9 só aparecem depois disso, então preenchem (total − PHASE1_SEC).
+const PHASE1_SEC = 15; // precisa bater com o PHASE1_SEC do FloatingPhoneShowcase.tsx
+const wideFill = Math.max(0, totalDuration - PHASE1_SEC);
+
 const looped = [];
 let current = 0;
 let idx = 0;
 const cursors = {}; // absPath -> segundos já consumidos do vídeo
 
-while (current < totalDuration) {
+while (current < wideFill) {
   const seg = base[idx % base.length];
-  const remaining = totalDuration - current;
+  const remaining = wideFill - current;
   const clipDur = Math.min(SECONDS_PER_ITEM, remaining);
 
   const out = {
@@ -150,7 +155,7 @@ while (current < totalDuration) {
   idx += 1;
 }
 
-console.log(`[PREP] ${base.length} mídia(s) única(s) → ${looped.length} segmento(s) para cobrir ${totalDuration}s`);
+console.log(`[PREP] ${base.length} mídia(s) única(s) → ${looped.length} segmento(s) para cobrir a fase 2 (${wideFill}s, após ${PHASE1_SEC}s de tela cheia do principal)`);
 
 const props = {
   portraitVideoSrc: toFileUrl(portraitPath),

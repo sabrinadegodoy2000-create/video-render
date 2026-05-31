@@ -93,66 +93,45 @@ export const FloatingPhoneShowcase: React.FC<FloatingPhoneProps> = ({
   const { fps } = useVideoConfig();
   const totalFrames = Math.round(durationSec * fps);
 
-  const floatY = Math.sin((frame / fps) * (2 * Math.PI) / 3) * 12;
+  // ── Layout em 2 fases ───────────────────────────────────────────
+  // Fase 1 (0–PHASE1_SEC): vídeo principal (16:9) em TELA CHEIA, prioritário.
+  // Fase 2: principal encolhe pro PiP (canto inferior direito, com neon) e as
+  //         imagens/vídeos tomam a tela cheia atrás dele.
+  const PHASE1_SEC = 15;
+  const PIP_TRANS = 0.6; // tempo do "encolher"
+  const phase1Frames = Math.round(PHASE1_SEC * fps);
+  const pip = interpolate(frame, [PHASE1_SEC * fps, (PHASE1_SEC + PIP_TRANS) * fps], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
 
-  const rectH = 1080 * 0.80;
-  const rectW = rectH * (9 / 16);
-  const marginRight = 120;
-  const rectX = 1920 - marginRight - rectW;
-  const verticalOffset = 60;
-  const rectY = (1080 - rectH) / 2 + floatY + verticalOffset;
+  // PiP (16:9) no canto inferior direito
+  const PIP_W = 560;
+  const PIP_H = 315;
+  const PIP_MARGIN = 48;
+  const PIP_RADIUS = 18;
+  const pipX = 1920 - PIP_W - PIP_MARGIN;
+  const pipY = 1080 - PIP_H - PIP_MARGIN;
 
-  const wideH = rectH;
-  const wideW = wideH * (16 / 9);
-  const gap = 60;
-  const wideX = rectX - gap - wideW;
-  const wideY = (1080 - rectH) / 2 + verticalOffset;
+  // Geometria do vídeo principal: tela cheia → PiP
+  const mainLeft = interpolate(pip, [0, 1], [0, pipX]);
+  const mainTop = interpolate(pip, [0, 1], [0, pipY]);
+  const mainW = interpolate(pip, [0, 1], [1920, PIP_W]);
+  const mainH = interpolate(pip, [0, 1], [1080, PIP_H]);
+  const mainRadius = interpolate(pip, [0, 1], [0, PIP_RADIUS]);
 
-  const perimeter = 2 * (rectW + rectH);
+  // Neon — só aparece quando o principal vira PiP
+  const neonPad = 24;
+  const perimeter = 2 * (mainW + mainH);
   const cycleFrames = fps * CYCLE_SEC;
   const progress = (frame % cycleFrames) / cycleFrames;
   const headOffset = -(perimeter * progress);
 
-  const pad = 32;
   const logoSize = 110;
   const logoMargin = 28;
 
   // Zoom suave aplicado só em fotos
   const wideImgScale = interpolate(frame, [0, totalFrames], [1.0, 1.08], { extrapolateRight: "clamp" });
-
-  // ── Foco alternado e coordenado (sem conflito) ──────────────────
-  // Agenda de focos dentro de um ciclo mestre. Para mudar a frequência de cada um,
-  // é só adicionar/remover eventos. "at" = segundo em que centraliza; "hold" = duração.
-  const clampF = { extrapolateLeft: "clamp" as const, extrapolateRight: "clamp" as const };
-  const MASTER_CYCLE_SEC = 60; // 1 minuto
-  const TRANS = 0.5; // tempo de deslize (entra/sai)
-  const FOCUS_SCHEDULE: { type: "916" | "169"; at: number; hold: number }[] = [
-    { type: "169", at: 6,  hold: 7 }, // 16:9 (1ª vez)
-    { type: "916", at: 25, hold: 5 }, // 9:16 — uma única vez por minuto
-    { type: "169", at: 42, hold: 7 }, // 16:9 (2ª vez)
-  ];
-  const mt = (frame % Math.round(MASTER_CYCLE_SEC * fps)) / fps;
-  const focusOf = (type: "916" | "169") =>
-    Math.max(
-      0,
-      ...FOCUS_SCHEDULE.filter((e) => e.type === type).map((e) =>
-        interpolate(mt, [e.at - TRANS, e.at, e.at + e.hold, e.at + e.hold + TRANS], [0, 1, 1, 0], clampF)
-      )
-    );
-  const focus916 = focusOf("916");
-  const focus169 = focusOf("169");
-
-  const centeredX = (1920 - rectW) / 2;       // centro pro 9:16
-
-  // 9:16: vai pro centro no seu foco; sai pela direita quando o 16:9 é o foco
-  const rectXF = rectX + (centeredX - rectX) * focus916 + (1920 + 80 - rectX) * focus169;
-
-  // 16:9: sai pela esquerda no foco do 9:16; vira TELA CHEIA no seu próprio foco
-  const wideLeft = wideX + (-wideW - 120 - wideX) * focus916 + (0 - wideX) * focus169;
-  const wideTop = wideY + (0 - wideY) * focus169;
-  const wideWidthF = wideW + (1920 - wideW) * focus169;
-  const wideHeightF = wideH + (1080 - wideH) * focus169;
-  const wideRadius = BORDER_RADIUS * (1 - focus169); // sem cantos arredondados em tela cheia
 
   return (
     <div style={{ width: 1920, height: 1080, background: "#000000", position: "relative" }}>
@@ -170,23 +149,24 @@ export const FloatingPhoneShowcase: React.FC<FloatingPhoneProps> = ({
         }}
       />
 
-      {/* Retângulo 16:9 — segmentos do storyboard com blur fill */}
+      {/* 16:9 — imagens/vídeos em TELA CHEIA (fundo; revelado na fase 2 atrás do PiP) */}
       <div
         style={{
           position: "absolute",
-          left: wideLeft,
-          top: wideTop,
-          width: wideWidthF,
-          height: wideHeightF,
-          borderRadius: wideRadius,
+          left: 0,
+          top: 0,
+          width: 1920,
+          height: 1080,
           overflow: "hidden",
           background: "#000000",
         }}
       >
         {wideSegments.map((seg, i) => {
-          const startFrame = wideSegments
-            .slice(0, i)
-            .reduce((acc, s) => acc + Math.round(s.durationSec * fps), 0);
+          const startFrame =
+            phase1Frames +
+            wideSegments
+              .slice(0, i)
+              .reduce((acc, s) => acc + Math.round(s.durationSec * fps), 0);
           // Estende a duração no crossfade pra a foto anterior "segurar" enquanto a próxima entra
           const durationInFrames = Math.round(seg.durationSec * fps) + CROSSFADE_FRAMES;
           // A próxima entra por cima com fade-in (a 1ª já começa opaca, sem preto no início)
@@ -268,17 +248,18 @@ export const FloatingPhoneShowcase: React.FC<FloatingPhoneProps> = ({
         })}
       </div>
 
-      {/* Retângulo 9:16 — vídeo portrait */}
+      {/* Vídeo principal — tela cheia (fase 1) → PiP no canto inferior direito (fase 2) */}
       <div
         style={{
           position: "absolute",
-          left: rectXF,
-          top: rectY,
-          width: rectW,
-          height: rectH,
-          borderRadius: BORDER_RADIUS,
+          left: mainLeft,
+          top: mainTop,
+          width: mainW,
+          height: mainH,
+          borderRadius: mainRadius,
           overflow: "hidden",
           background: "#000000",
+          zIndex: 5,
         }}
       >
         {/\.(jpe?g|png|webp|gif|bmp|avif)(\?|$)/i.test(portraitVideoSrc) ? (
@@ -296,31 +277,21 @@ export const FloatingPhoneShowcase: React.FC<FloatingPhoneProps> = ({
             style={{ width: "100%", height: "100%", objectFit: "cover" }}
           />
         )}
-        {/* Sombra gradiente na parte de baixo */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            width: "100%",
-            height: "40%",
-            background: "linear-gradient(to bottom, transparent, #000000)",
-            pointerEvents: "none",
-          }}
-        />
       </div>
 
-      {/* SVG neon no 9:16 */}
+      {/* SVG neon — borda do PiP (aparece só quando o principal vira PiP) */}
       <svg
         style={{
           position: "absolute",
-          left: rectXF - pad,
-          top: rectY - pad,
+          left: mainLeft - neonPad,
+          top: mainTop - neonPad,
           overflow: "visible",
           pointerEvents: "none",
+          opacity: pip,
+          zIndex: 6,
         }}
-        width={rectW + pad * 2}
-        height={rectH + pad * 2}
+        width={mainW + neonPad * 2}
+        height={mainH + neonPad * 2}
       >
         <defs>
           <filter id="neon-glow" x="-50%" y="-50%" width="200%" height="200%">
@@ -335,13 +306,13 @@ export const FloatingPhoneShowcase: React.FC<FloatingPhoneProps> = ({
             </feMerge>
           </filter>
         </defs>
-        <rect x={pad} y={pad} width={rectW} height={rectH} rx={BORDER_RADIUS} ry={BORDER_RADIUS}
+        <rect x={neonPad} y={neonPad} width={mainW} height={mainH} rx={mainRadius} ry={mainRadius}
           fill="none" stroke={NEON_COLOR} strokeWidth={STROKE_WIDTH} opacity={0.08} />
-        <rect x={pad} y={pad} width={rectW} height={rectH} rx={BORDER_RADIUS} ry={BORDER_RADIUS}
+        <rect x={neonPad} y={neonPad} width={mainW} height={mainH} rx={mainRadius} ry={mainRadius}
           fill="none" stroke={NEON_COLOR} strokeWidth={STROKE_WIDTH}
           strokeDasharray={`${TAIL_LENGTH} ${perimeter - TAIL_LENGTH}`}
           strokeDashoffset={headOffset} strokeLinecap="round" filter="url(#neon-glow)" />
-        <rect x={pad} y={pad} width={rectW} height={rectH} rx={BORDER_RADIUS} ry={BORDER_RADIUS}
+        <rect x={neonPad} y={neonPad} width={mainW} height={mainH} rx={mainRadius} ry={mainRadius}
           fill="none" stroke="#ffffff" strokeWidth={STROKE_WIDTH * 0.4}
           strokeDasharray={`${TAIL_LENGTH * 0.15} ${perimeter - TAIL_LENGTH * 0.15}`}
           strokeDashoffset={headOffset} strokeLinecap="round" />

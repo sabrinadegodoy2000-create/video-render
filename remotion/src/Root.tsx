@@ -380,12 +380,16 @@ export const RemotionRoot: React.FC = () => {
         width={1920}
         height={1080}
         defaultProps={{
-          portraitVideoSrc: staticFile("test_portrait.mp4"),
+          portraitVideoSrc: staticFile("samples/img1.jpg"),
           logoSrc: staticFile("logo.png"),
           wideSegments: [
-            { src: staticFile("test_video.mp4"), type: "video", durationSec: 5 },
+            { src: staticFile("samples/img2.jpg"), type: "photo", durationSec: 5 },
+            { src: staticFile("samples/img3.jpg"), type: "photo", durationSec: 5 },
+            { src: staticFile("samples/img4.jpg"), type: "photo", durationSec: 5 },
+            { src: staticFile("samples/img5.jpg"), type: "photo", durationSec: 5 },
+            { src: staticFile("samples/img6.jpg"), type: "photo", durationSec: 5 },
           ],
-          durationSec: 5,
+          durationSec: 40,
         }}
         calculateMetadata={({ props }) => ({
           durationInFrames: Math.ceil((props as any).durationSec * FPS),

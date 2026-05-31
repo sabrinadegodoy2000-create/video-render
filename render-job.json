@@ -1,10 +1,9 @@
 {
-  "_comentario": "Defina só o portrait e o logo. TODAS as outras mídias do Release viram automaticamente o conteúdo 16:9 — não precisa listar uma por uma.",
+  "_comentario": "Defina o mainVideo (vídeo principal 16:9 que aparece em tela cheia e depois vira PiP) e o logo. TODAS as outras mídias do Release viram automaticamente o conteúdo 16:9 de fundo — não precisa listar uma por uma.",
 
-  "portrait": "video-9-16-eu-todo.mp4",
+  "mainVideo": "video-9-16-eu-todo.mp4",
   "logo": "logo-estranho.png",
 
   "secondsPerItem": 3,
   "concurrency": 2
-
 }

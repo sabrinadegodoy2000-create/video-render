@@ -46,9 +46,9 @@ No GitHub, abra seu repositório e vá em **Releases** (lado direito) →
 
 - Em **"Choose a tag"**, digite uma tag nova, ex: `render-001` → **"Create new tag"**
 - **Arraste** para a área de anexos ("Attach binaries"):
-  - O vídeo **9:16** (portrait)
+  - O **vídeo principal** (aparece em tela cheia nos primeiros 15s, depois vira PiP no canto)
   - O **logo**
-  - Todas as **fotos/vídeos do 16:9**
+  - Todas as **fotos/vídeos do 16:9** (viram o fundo de tela cheia depois dos 15s)
 - Clique em **"Publish release"** (pode esperar o upload dos 700MB terminar)
 
 > É aqui que entra o upload das mídias. Demora conforme sua internet,
@@ -60,7 +60,7 @@ Edite o arquivo `render-job.json` (pode editar direto no GitHub: abra o arquivo 
 
 ```json
 {
-  "portrait": "meu-video-9-16.mp4",
+  "mainVideo": "meu-video-principal.mp4",
   "logo": "logo.png",
   "wide": [
     { "file": "foto1.jpg", "type": "photo" },
@@ -71,10 +71,11 @@ Edite o arquivo `render-job.json` (pode editar direto no GitHub: abra o arquivo 
 }
 ```
 
+- `mainVideo` é o vídeo principal (tela cheia → PiP). A duração total do vídeo segue a duração dele.
+- A lista `wide` é **opcional**: se omitir, todas as mídias do Release (menos o mainVideo e o logo) viram o 16:9 automaticamente.
 - A **ordem** da lista `wide` é a ordem que aparece no 16:9.
-- O `type` é opcional (detecto pela extensão), mas pode deixar pra garantir.
-- As mídias se **repetem em loop** até preencher a duração do vídeo 9:16.
-- Vídeos **avançam** o trecho a cada repetição (0-3s, 3-6s...) e voltam ao início no fim.
+- As mídias se **repetem em loop** até preencher a fase 2 (a duração do vídeo menos os 15s iniciais).
+- Vídeos no 16:9 **avançam** o trecho a cada repetição (0-3s, 3-6s...) e voltam ao início no fim.
 
 Salve (**"Commit changes"**).
 

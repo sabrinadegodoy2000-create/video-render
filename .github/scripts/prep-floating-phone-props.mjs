@@ -62,19 +62,21 @@ function videoDuration(absPath) {
   }
 }
 
-// ── Portrait (9:16) ──────────────────────────────────────────────
-const portraitPath = resolveMedia(job.portrait, "portrait");
+// ── Vídeo principal (16:9 → tela cheia → PiP) ────────────────────
+// Aceita "mainVideo" (novo) ou "portrait" (nome antigo, reserva).
+const mainVideoFile = job.mainVideo || job.portrait;
+const mainPath = resolveMedia(mainVideoFile, "mainVideo");
 const logoPath = resolveMedia(job.logo, "logo");
 
-const totalDuration = Math.ceil(videoDuration(portraitPath));
+const totalDuration = Math.ceil(videoDuration(mainPath));
 if (!totalDuration) {
-  throw new Error("Não consegui medir a duração do vídeo 9:16 (portrait). O arquivo está corrompido?");
+  throw new Error("Não consegui medir a duração do vídeo principal (mainVideo). O arquivo está corrompido?");
 }
-console.log(`[PREP] Vídeo 9:16: ${path.basename(portraitPath)} — ${totalDuration}s`);
+console.log(`[PREP] Vídeo principal: ${path.basename(mainPath)} — ${totalDuration}s`);
 
 // ── Mídias do 16:9 ───────────────────────────────────────────────
 // Se "wide" não estiver definido no JSON, auto-detecta tudo na pasta
-// que não seja o portrait nem o logo.
+// que não seja o vídeo principal nem o logo.
 const VIDEO_EXTS = new Set([".mp4", ".mov", ".mkv", ".webm", ".avi"]);
 const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"]);
 
@@ -82,7 +84,7 @@ let wideInput = Array.isArray(job.wide) ? job.wide : null;
 
 if (!wideInput) {
   const reserved = new Set([
-    path.basename(job.portrait),
+    path.basename(mainVideoFile),
     path.basename(job.logo),
     "floating-phone-output.mp4",
   ]);
@@ -158,7 +160,7 @@ while (current < wideFill) {
 console.log(`[PREP] ${base.length} mídia(s) única(s) → ${looped.length} segmento(s) para cobrir a fase 2 (${wideFill}s, após ${PHASE1_SEC}s de tela cheia do principal)`);
 
 const props = {
-  portraitVideoSrc: toFileUrl(portraitPath),
+  portraitVideoSrc: toFileUrl(mainPath), // nome da prop no componente segue "portraitVideoSrc"
   logoSrc: toFileUrl(logoPath),
   wideSegments: looped,
   durationSec: totalDuration,

@@ -93,16 +93,19 @@ export const FloatingPhoneShowcase: React.FC<FloatingPhoneProps> = ({
   const { fps } = useVideoConfig();
   const totalFrames = Math.round(durationSec * fps);
 
-  // ── Layout em 2 fases ───────────────────────────────────────────
-  // Fase 1 (0–PHASE1_SEC): vídeo principal em TELA CHEIA, prioritário.
-  // Fase 2: encolhe pro PiP (canto inferior direito, com neon) e PERMANECE PiP até o fim.
-  const PHASE1_SEC = 10;  // tela cheia só nos 10 primeiros segundos
-  const PIP_TRANS = 0.6;  // tempo do "encolher"
+  // ── Layout ───────────────────────────────────────────────────────
+  // PHASE1_SEC = segundos iniciais em TELA CHEIA antes de encolher pro PiP.
+  // PHASE1_SEC = 0  →  PiP o vídeo inteiro (sem abertura em tela cheia).
+  const PHASE1_SEC = 0;   // 0 = sempre PiP
+  const PIP_TRANS = 0.6;  // tempo do "encolher" (quando há fase de tela cheia)
   const phase1Frames = Math.round(PHASE1_SEC * fps);
-  const pip = interpolate(frame, [PHASE1_SEC * fps, (PHASE1_SEC + PIP_TRANS) * fps], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
+  const pip =
+    PHASE1_SEC <= 0
+      ? 1
+      : interpolate(frame, [PHASE1_SEC * fps, (PHASE1_SEC + PIP_TRANS) * fps], [0, 1], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+        });
 
   // PiP (16:9) no canto inferior direito
   const PIP_W = 560;

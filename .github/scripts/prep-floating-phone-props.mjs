@@ -125,7 +125,7 @@ const base = wideInput.map((entry, i) => {
 // ── Loop para preencher a FASE 2 ─────────────────────────────────
 // O vídeo principal ocupa a tela cheia nos primeiros PHASE1_SEC segundos.
 // As imagens/vídeos do 16:9 só aparecem depois disso, então preenchem (total − PHASE1_SEC).
-const PHASE1_SEC = 10; // precisa bater com o PHASE1_SEC do FloatingPhoneShowcase.tsx
+const PHASE1_SEC = 0; // precisa bater com o PHASE1_SEC do FloatingPhoneShowcase.tsx (0 = PiP o vídeo todo)
 const wideFill = Math.max(0, totalDuration - PHASE1_SEC);
 
 const looped = [];

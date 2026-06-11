@@ -1,4 +1,5 @@
 import { useCurrentFrame, useVideoConfig, Img, OffthreadVideo, interpolate, Sequence, Loop, staticFile } from "remotion";
+import { SubscribeBar } from "./SubscribePopup";
 
 export type WideSegment = {
   src: string;
@@ -13,6 +14,11 @@ export type FloatingPhoneProps = {
   wideSegments: WideSegment[];
   durationSec: number;
   portraitClipSec?: number; // se definido, o 9:16 repete em loop a cada N segundos
+  // Barra de inscrição (aparece de baixo a cada N segundos)
+  channelName?: string;
+  channelHandle?: string;
+  subAvatarSrc?: string;
+  subCycleSec?: number;
 };
 
 export const FLOATING_PHONE_DURATION = 150; // fallback 5s @ 30fps
@@ -23,64 +29,7 @@ const NEON_COLOR = "#ff2020";
 const TAIL_LENGTH = 320;
 const CYCLE_SEC = 2;
 
-const SUB_CYCLE_SEC = 40; // reaparece a cada 40s; a animação dura ~7,4s e fica oculto o resto
 const CROSSFADE_FRAMES = 12; // transição suave entre mídias do 16:9 (~0,4s)
-
-// Sininho (estado "Iscritto") — PNG fornecido. white=true deixa branco (pra aparecer no botão vermelho)
-const BellIcon: React.FC<{ size?: number; white?: boolean }> = ({ size = 30, white = false }) => (
-  <Img
-    src={staticFile("bell.png")}
-    style={{ width: size, height: size, objectFit: "contain", filter: white ? "brightness(0) invert(1)" : "none" }}
-  />
-);
-
-// Ícone do play estilo YouTube (quadradinho branco + triângulo vermelho)
-const YtPlayBox: React.FC<{ red?: string }> = ({ red = "#ff0000" }) => (
-  <svg width="44" height="31" viewBox="0 0 44 31" style={{ flexShrink: 0 }}>
-    <rect width="44" height="31" rx="7" fill="#ffffff" />
-    <path d="M18 9 L31 15.5 L18 22 Z" fill={red} />
-  </svg>
-);
-
-// Botão de inscrição animado: aparece "Iscriviti" e vira "Iscritto" a cada 5s
-const SubscribeButton: React.FC<{ frame: number; fps: number }> = ({ frame, fps }) => {
-  const cycle = SUB_CYCLE_SEC * fps;
-  const t = (frame % cycle) / fps; // segundos dentro do ciclo
-  const clamp = { extrapolateLeft: "clamp" as const, extrapolateRight: "clamp" as const };
-
-  const appear = interpolate(t, [0, 0.35], [0, 1], clamp);
-  const disappear = interpolate(t, [7.0, 7.4], [1, 0], clamp);
-  const visible = appear * disappear;
-  const scaleIn = interpolate(appear, [0, 1], [0.7, 1]);
-
-  const subscribed = t >= 3.5; // ~3s em "Iscriviti", depois ~3s+ em "Iscritto"
-  // pequeno "pop" no momento da troca pra Iscritto
-  const pop = interpolate(t, [3.5, 3.62, 3.78], [1, 0.92, 1], clamp);
-
-  const FONT = "'Neue Haas Grotesk Display Pro', 'Helvetica Neue', Arial, sans-serif";
-
-  return (
-    <div style={{ position: "absolute", top: 44, right: 48, opacity: visible, transform: `scale(${scaleIn})`, transformOrigin: "top right", zIndex: 30 }}>
-      <div
-        style={{
-          transform: `scale(${pop})`,
-          display: "flex",
-          alignItems: "center",
-          gap: 14,
-          padding: "15px 42px",
-          borderRadius: 10,
-          background: "#ff0000",
-          boxShadow: "0 10px 24px rgba(0,0,0,0.28)",
-        }}
-      >
-        {subscribed ? <BellIcon size={32} white /> : <YtPlayBox red="#ff0000" />}
-        <span style={{ fontFamily: FONT, fontWeight: 700, fontSize: 38, letterSpacing: 0.3, color: "#ffffff", whiteSpace: "nowrap", textTransform: "uppercase" }}>
-          {subscribed ? "Iscritto" : "Iscriviti"}
-        </span>
-      </div>
-    </div>
-  );
-};
 
 export const FloatingPhoneShowcase: React.FC<FloatingPhoneProps> = ({
   portraitVideoSrc,
@@ -88,6 +37,10 @@ export const FloatingPhoneShowcase: React.FC<FloatingPhoneProps> = ({
   wideSegments,
   durationSec,
   portraitClipSec,
+  channelName = "Mondo Ferrari F1",
+  channelHandle = "@MondoFerrariF1",
+  subAvatarSrc,
+  subCycleSec = 40,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -320,8 +273,13 @@ export const FloatingPhoneShowcase: React.FC<FloatingPhoneProps> = ({
           strokeDashoffset={headOffset} strokeLinecap="round" />
       </svg>
 
-      {/* Botão de inscrição animado — canto superior direito */}
-      <SubscribeButton frame={frame} fps={fps} />
+      {/* Barra de inscrição animada — entra de baixo, a cada subCycleSec */}
+      <SubscribeBar
+        channelName={channelName}
+        channelHandle={channelHandle}
+        avatarSrc={subAvatarSrc || logoSrc}
+        cycleSec={subCycleSec}
+      />
     </div>
   );
 };

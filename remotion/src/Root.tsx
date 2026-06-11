@@ -52,6 +52,7 @@ import { NewsCoverShowcase } from "./components/NewsCoverShowcase";
 import { SourcesCardShowcasePT, SourcesCardShowcaseIT } from "./components/SourcesCardShowcase";
 import { SOURCES_CARD_DURATION } from "./components/SourcesCard";
 import { FloatingPhoneShowcase, FLOATING_PHONE_DURATION } from "./FloatingPhoneShowcase";
+import { SubscribePopup, SUBSCRIBE_POPUP_DURATION } from "./SubscribePopup";
 const FPS = 30;
 
 const DEMO_PROPS: VideoCompositionProps = {
@@ -388,6 +389,24 @@ export const RemotionRoot: React.FC = () => {
             durationSec: 5,
           })),
           durationSec: 130,
+        }}
+        calculateMetadata={({ props }) => ({
+          durationInFrames: Math.ceil((props as any).durationSec * FPS),
+        })}
+      />
+      <Composition
+        id="SubscribePopup"
+        component={SubscribePopup as any}
+        durationInFrames={SUBSCRIBE_POPUP_DURATION}
+        fps={FPS}
+        width={1920}
+        height={1080}
+        defaultProps={{
+          channelName: "Mondo Ferrari F1",
+          channelHandle: "@MondoFerrariF1",
+          avatarSrc: staticFile("logo-estranho.png"),
+          durationSec: 12,
+          cycleSec: 40,
         }}
         calculateMetadata={({ props }) => ({
           durationInFrames: Math.ceil((props as any).durationSec * FPS),

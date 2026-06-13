@@ -1,7 +1,7 @@
 {
   "_comentario": "Defina o mainVideo (vídeo principal 16:9 que aparece em tela cheia e depois vira PiP) e o logo. TODAS as outras mídias do Release viram automaticamente o conteúdo 16:9 de fundo — não precisa listar uma por uma.",
 
-  "mainVideo": "intro-1-pt-video-Italian.mp4",
+  "mainVideo": "new-intro-1-pt-video-Italian.mp4.mp4",
   "logo": "logo-estranho.png",
 
   "secondsPerItem": 3,

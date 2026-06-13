@@ -57,6 +57,23 @@ jobs:
           echo "Mídias baixadas:"
           ls -lh render-media
 
+      - name: Normalizar vídeos para H.264 (Remotion não decodifica HEVC/H.265)
+        run: |
+          shopt -s nullglob nocaseglob
+          for f in render-media/*.mp4 render-media/*.mov render-media/*.mkv render-media/*.webm render-media/*.avi render-media/*.m4v; do
+            codec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$f" 2>/dev/null)
+            echo "→ $f (codec atual: ${codec:-desconhecido})"
+            tmp="${f%.*}.norm.mp4"
+            # Sempre normaliza pra H.264 yuv420p (1080p máx), garantindo compatibilidade e velocidade
+            ffmpeg -y -i "$f" \
+              -vf "scale='min(1920,iw)':-2" \
+              -c:v libx264 -profile:v high -pix_fmt yuv420p -crf 20 -preset veryfast \
+              -c:a aac -movflags +faststart "$tmp" 2>/dev/null \
+              && mv "$tmp" "$f" && echo "   ok → H.264" \
+              || { echo "   FALHOU ao normalizar $f"; rm -f "$tmp"; }
+          done
+          echo "Normalização concluída."
+
       - name: Preparar props (loop + startSec + durações)
         run: |
           node .github/scripts/prep-floating-phone-props.mjs \

@@ -5,6 +5,8 @@ export type SubscribeBarProps = {
   channelHandle: string;
   avatarSrc: string;
   cycleSec: number; // de quanto em quanto tempo a barra reaparece
+  subscribeText?: string;  // ex: "Iscriviti" (it) / "Suscríbete" (es)
+  subscribedText?: string; // ex: "Iscritto" (it) / "Suscrito" (es)
 };
 
 export type SubscribePopupProps = SubscribeBarProps & {
@@ -21,6 +23,8 @@ export const SubscribeBar: React.FC<SubscribeBarProps> = ({
   channelHandle,
   avatarSrc,
   cycleSec,
+  subscribeText = "Iscriviti",
+  subscribedText = "Iscritto",
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -93,17 +97,19 @@ export const SubscribeBar: React.FC<SubscribeBarProps> = ({
             boxShadow: "0 12px 34px rgba(0,0,0,0.30)",
           }}
         >
-          {/* Avatar */}
-          <Img
-            src={avatarSrc}
-            style={{
-              width: BAR_H - 28,
-              height: BAR_H - 28,
-              borderRadius: "50%",
-              objectFit: "cover",
-              flexShrink: 0,
-            }}
-          />
+          {/* Avatar (opcional) */}
+          {avatarSrc ? (
+            <Img
+              src={avatarSrc}
+              style={{
+                width: BAR_H - 28,
+                height: BAR_H - 28,
+                borderRadius: "50%",
+                objectFit: "cover",
+                flexShrink: 0,
+              }}
+            />
+          ) : null}
 
           {/* Nome + handle */}
           <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", marginRight: 6 }}>
@@ -135,7 +141,7 @@ export const SubscribeBar: React.FC<SubscribeBarProps> = ({
             }}
           >
             <span style={{ fontFamily: FONT, fontWeight: 700, fontSize: 28, letterSpacing: 0.5, color: subscribed ? "#606060" : "#ffffff", whiteSpace: "nowrap", textTransform: "uppercase" }}>
-              {subscribed ? "Iscritto" : "Iscriviti"}
+              {subscribed ? subscribedText : subscribeText}
             </span>
           </div>
 
@@ -172,6 +178,8 @@ export const SubscribePopup: React.FC<SubscribePopupProps> = ({
   channelHandle,
   avatarSrc,
   cycleSec,
+  subscribeText,
+  subscribedText,
 }) => (
   <div style={{ width: 1920, height: 1080, position: "relative", background: "transparent" }}>
     <SubscribeBar
@@ -179,6 +187,8 @@ export const SubscribePopup: React.FC<SubscribePopupProps> = ({
       channelHandle={channelHandle}
       avatarSrc={avatarSrc}
       cycleSec={cycleSec}
+      subscribeText={subscribeText}
+      subscribedText={subscribedText}
     />
   </div>
 );

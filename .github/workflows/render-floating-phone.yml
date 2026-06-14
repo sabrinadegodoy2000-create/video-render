@@ -16,7 +16,32 @@ on:
         default: ""
         type: string
       logo:
-        description: "Nome do arquivo do logo. Vazio = usa o render-job.json"
+        description: "Nome do arquivo do logo (opcional). Vazio = sem logo"
+        required: false
+        default: ""
+        type: string
+      avatar:
+        description: "Nome do arquivo da foto do canal (avatar do popup)"
+        required: false
+        default: ""
+        type: string
+      channel_name:
+        description: "Nome do canal no popup de inscrição"
+        required: false
+        default: ""
+        type: string
+      channel_handle:
+        description: "@ do canal no popup"
+        required: false
+        default: ""
+        type: string
+      subscribe_text:
+        description: "Texto do botão (ex: Iscriviti, Suscríbete)"
+        required: false
+        default: ""
+        type: string
+      subscribed_text:
+        description: "Texto após inscrever (ex: Iscritto, Suscrito)"
         required: false
         default: ""
         type: string
@@ -93,6 +118,11 @@ jobs:
         env:
           MAIN_VIDEO: ${{ inputs.main_video }}
           LOGO: ${{ inputs.logo }}
+          AVATAR: ${{ inputs.avatar }}
+          CHANNEL_NAME: ${{ inputs.channel_name }}
+          CHANNEL_HANDLE: ${{ inputs.channel_handle }}
+          SUBSCRIBE_TEXT: ${{ inputs.subscribe_text }}
+          SUBSCRIBED_TEXT: ${{ inputs.subscribed_text }}
         run: |
           node .github/scripts/prep-floating-phone-props.mjs \
             render-job.json \

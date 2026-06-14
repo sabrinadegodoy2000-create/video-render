@@ -62,12 +62,21 @@ function videoDuration(absPath) {
   }
 }
 
-// ── Vídeo principal (16:9 → tela cheia → PiP) ────────────────────
-// Prioridade: variável de ambiente (workflow input) > "mainVideo" > "portrait" (reserva).
+// ── Vídeo principal + logo (opcional) + avatar do canal (opcional) ──
+// Prioridade: variável de ambiente (workflow input) > campo do render-job.json > reserva.
 const mainVideoFile = process.env.MAIN_VIDEO || job.mainVideo || job.portrait;
-const logoFile = process.env.LOGO || job.logo;
+const logoFile = process.env.LOGO || job.logo || "";        // opcional
+const avatarFile = process.env.AVATAR || job.avatar || "";  // opcional (foto do canal no popup)
+
 const mainPath = resolveMedia(mainVideoFile, "mainVideo");
-const logoPath = resolveMedia(logoFile, "logo");
+const logoPath = logoFile ? resolveMedia(logoFile, "logo") : "";
+const avatarPath = avatarFile ? resolveMedia(avatarFile, "avatar") : "";
+
+// Textos do popup de inscrição (configuráveis por canal)
+const channelName = process.env.CHANNEL_NAME || "Mondo Ferrari F1";
+const channelHandle = process.env.CHANNEL_HANDLE || "@MondoFerrariF1";
+const subscribeText = process.env.SUBSCRIBE_TEXT || "Iscriviti";
+const subscribedText = process.env.SUBSCRIBED_TEXT || "Iscritto";
 
 const totalDuration = Math.ceil(videoDuration(mainPath));
 if (!totalDuration) {
@@ -86,9 +95,10 @@ let wideInput = Array.isArray(job.wide) ? job.wide : null;
 if (!wideInput) {
   const reserved = new Set([
     path.basename(mainVideoFile),
-    path.basename(logoFile),
+    logoFile ? path.basename(logoFile) : null,
+    avatarFile ? path.basename(avatarFile) : null,
     "floating-phone-output.mp4",
-  ]);
+  ].filter(Boolean));
   const allFiles = fs.readdirSync(mediaDir).filter((f) => {
     if (reserved.has(f)) return false;
     const ext = path.extname(f).toLowerCase();
@@ -162,9 +172,14 @@ console.log(`[PREP] ${base.length} mídia(s) única(s) → ${looped.length} segm
 
 const props = {
   portraitVideoSrc: toFileUrl(mainPath), // nome da prop no componente segue "portraitVideoSrc"
-  logoSrc: toFileUrl(logoPath),
+  logoSrc: logoPath ? toFileUrl(logoPath) : "",       // vazio = sem logo no topo
   wideSegments: looped,
   durationSec: totalDuration,
+  channelName,
+  channelHandle,
+  subscribeText,
+  subscribedText,
+  subAvatarSrc: avatarPath ? toFileUrl(avatarPath) : "",
 };
 
 fs.writeFileSync(outFile, JSON.stringify(props, null, 2));

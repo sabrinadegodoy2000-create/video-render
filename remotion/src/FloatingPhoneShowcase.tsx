@@ -19,6 +19,8 @@ export type FloatingPhoneProps = {
   channelHandle?: string;
   subAvatarSrc?: string;
   subCycleSec?: number;
+  subscribeText?: string;  // texto do botão (ex: "Iscriviti" / "Suscríbete")
+  subscribedText?: string; // depois do clique (ex: "Iscritto" / "Suscrito")
 };
 
 export const FLOATING_PHONE_DURATION = 150; // fallback 5s @ 30fps
@@ -41,6 +43,8 @@ export const FloatingPhoneShowcase: React.FC<FloatingPhoneProps> = ({
   channelHandle = "@MondoFerrariF1",
   subAvatarSrc,
   subCycleSec = 40,
+  subscribeText = "Iscriviti",
+  subscribedText = "Iscritto",
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -90,19 +94,21 @@ export const FloatingPhoneShowcase: React.FC<FloatingPhoneProps> = ({
 
   return (
     <div style={{ width: 1920, height: 1080, background: "#000000", position: "relative" }}>
-      {/* Logo — canto superior esquerdo (sempre por cima, inclusive do 16:9 em tela cheia) */}
-      <Img
-        src={logoSrc}
-        style={{
-          position: "absolute",
-          left: logoMargin,
-          top: logoMargin,
-          width: logoSize,
-          height: logoSize,
-          objectFit: "contain",
-          zIndex: 20,
-        }}
-      />
+      {/* Logo — canto superior esquerdo (opcional; se não houver, não aparece nada) */}
+      {logoSrc ? (
+        <Img
+          src={logoSrc}
+          style={{
+            position: "absolute",
+            left: logoMargin,
+            top: logoMargin,
+            width: logoSize,
+            height: logoSize,
+            objectFit: "contain",
+            zIndex: 20,
+          }}
+        />
+      ) : null}
 
       {/* 16:9 — imagens/vídeos em TELA CHEIA (fundo; revelado na fase 2 atrás do PiP) */}
       <div
@@ -279,6 +285,8 @@ export const FloatingPhoneShowcase: React.FC<FloatingPhoneProps> = ({
         channelHandle={channelHandle}
         avatarSrc={subAvatarSrc || logoSrc}
         cycleSec={subCycleSec}
+        subscribeText={subscribeText}
+        subscribedText={subscribedText}
       />
     </div>
   );

@@ -1,4 +1,5 @@
 name: Render FloatingPhone
+run-name: Render ${{ inputs.release_tag }}
 
 # Dispara manualmente pela aba "Actions" do GitHub.
 # Informe a TAG do Release que contém as mídias (vídeo 9:16, logo, fotos/vídeos do 16:9).

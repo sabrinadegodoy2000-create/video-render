@@ -63,10 +63,11 @@ function videoDuration(absPath) {
 }
 
 // ── Vídeo principal (16:9 → tela cheia → PiP) ────────────────────
-// Aceita "mainVideo" (novo) ou "portrait" (nome antigo, reserva).
-const mainVideoFile = job.mainVideo || job.portrait;
+// Prioridade: variável de ambiente (workflow input) > "mainVideo" > "portrait" (reserva).
+const mainVideoFile = process.env.MAIN_VIDEO || job.mainVideo || job.portrait;
+const logoFile = process.env.LOGO || job.logo;
 const mainPath = resolveMedia(mainVideoFile, "mainVideo");
-const logoPath = resolveMedia(job.logo, "logo");
+const logoPath = resolveMedia(logoFile, "logo");
 
 const totalDuration = Math.ceil(videoDuration(mainPath));
 if (!totalDuration) {
@@ -85,7 +86,7 @@ let wideInput = Array.isArray(job.wide) ? job.wide : null;
 if (!wideInput) {
   const reserved = new Set([
     path.basename(mainVideoFile),
-    path.basename(job.logo),
+    path.basename(logoFile),
     "floating-phone-output.mp4",
   ]);
   const allFiles = fs.readdirSync(mediaDir).filter((f) => {

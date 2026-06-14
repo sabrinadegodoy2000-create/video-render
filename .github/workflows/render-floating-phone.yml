@@ -9,6 +9,16 @@ on:
         description: "Tag do Release com as mídias (ex: render-001)"
         required: true
         type: string
+      main_video:
+        description: "Nome do arquivo do vídeo principal (PiP). Vazio = usa o render-job.json"
+        required: false
+        default: ""
+        type: string
+      logo:
+        description: "Nome do arquivo do logo. Vazio = usa o render-job.json"
+        required: false
+        default: ""
+        type: string
       concurrency:
         description: "Núcleos usados no render (1-2). O runner gratuito do GitHub tem 2 núcleos."
         required: false
@@ -79,6 +89,9 @@ jobs:
           echo "Normalização concluída."
 
       - name: Preparar props (loop + startSec + durações)
+        env:
+          MAIN_VIDEO: ${{ inputs.main_video }}
+          LOGO: ${{ inputs.logo }}
         run: |
           node .github/scripts/prep-floating-phone-props.mjs \
             render-job.json \

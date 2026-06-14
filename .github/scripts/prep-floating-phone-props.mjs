@@ -63,10 +63,12 @@ function videoDuration(absPath) {
 }
 
 // ── Vídeo principal + logo (opcional) + avatar do canal (opcional) ──
-// Prioridade: variável de ambiente (workflow input) > campo do render-job.json > reserva.
+// Se veio via inputs (ferramenta), os valores do env mandam — e VAZIO = "nenhum"
+// (não cai de volta no render-job.json). Sem inputs (run manual), usa o render-job.json.
+const usingInputs = !!process.env.MAIN_VIDEO;
 const mainVideoFile = process.env.MAIN_VIDEO || job.mainVideo || job.portrait;
-const logoFile = process.env.LOGO || job.logo || "";        // opcional
-const avatarFile = process.env.AVATAR || job.avatar || "";  // opcional (foto do canal no popup)
+const logoFile = usingInputs ? (process.env.LOGO || "") : (job.logo || "");          // opcional
+const avatarFile = usingInputs ? (process.env.AVATAR || "") : (job.avatar || "");    // opcional
 
 const mainPath = resolveMedia(mainVideoFile, "mainVideo");
 const logoPath = logoFile ? resolveMedia(logoFile, "logo") : "";

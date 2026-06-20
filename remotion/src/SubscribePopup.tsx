@@ -5,6 +5,7 @@ export type SubscribeBarProps = {
   channelHandle: string;
   avatarSrc: string;
   cycleSec: number; // de quanto em quanto tempo a barra reaparece
+  offsetSec?: number; // atraso da 1ª aparição (default 0)
   subscribeText?: string;  // ex: "Iscriviti" (it) / "Suscríbete" (es)
   subscribedText?: string; // ex: "Iscritto" (it) / "Suscrito" (es)
 };
@@ -23,6 +24,7 @@ export const SubscribeBar: React.FC<SubscribeBarProps> = ({
   channelHandle,
   avatarSrc,
   cycleSec,
+  offsetSec = 0,
   subscribeText = "Iscriviti",
   subscribedText = "Iscritto",
 }) => {
@@ -30,7 +32,9 @@ export const SubscribeBar: React.FC<SubscribeBarProps> = ({
   const { fps } = useVideoConfig();
 
   const cycleFrames = Math.round(cycleSec * fps);
-  const t = (frame % cycleFrames) / fps; // segundos dentro do ciclo
+  // aplica a defasagem da 1ª aparição (módulo seguro pra frames negativos)
+  const shifted = ((frame - Math.round(offsetSec * fps)) % cycleFrames + cycleFrames) % cycleFrames;
+  const t = shifted / fps; // segundos dentro do ciclo
   const clamp = { extrapolateLeft: "clamp" as const, extrapolateRight: "clamp" as const };
 
   // ── Linha do tempo da animação (dentro do ciclo) ────────────────

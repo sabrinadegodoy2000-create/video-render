@@ -1,5 +1,6 @@
 import { useCurrentFrame, useVideoConfig, Img, OffthreadVideo, interpolate, Sequence, Loop, staticFile } from "remotion";
 import { SubscribeBar } from "./SubscribePopup";
+import { InstagramBar } from "./InstagramBar";
 
 export type WideSegment = {
   src: string;
@@ -21,6 +22,7 @@ export type FloatingPhoneProps = {
   subCycleSec?: number;
   subscribeText?: string;  // texto do botão (ex: "Iscriviti" / "Suscríbete")
   subscribedText?: string; // depois do clique (ex: "Iscritto" / "Suscrito")
+  instagramHandle?: string; // @ do Instagram (barra do IG); vazio = não mostra
 };
 
 export const FLOATING_PHONE_DURATION = 150; // fallback 5s @ 30fps
@@ -45,6 +47,7 @@ export const FloatingPhoneShowcase: React.FC<FloatingPhoneProps> = ({
   subCycleSec = 40,
   subscribeText = "Iscriviti",
   subscribedText = "Iscritto",
+  instagramHandle = "@mondoferrarif1it",
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -279,15 +282,21 @@ export const FloatingPhoneShowcase: React.FC<FloatingPhoneProps> = ({
           strokeDashoffset={headOffset} strokeLinecap="round" />
       </svg>
 
-      {/* Barra de inscrição animada — entra de baixo, a cada subCycleSec */}
+      {/* Barra de inscrição (YouTube) — só começa aos 25s (depois do Instagram), a cada subCycleSec */}
       <SubscribeBar
         channelName={channelName}
         channelHandle={channelHandle}
         avatarSrc={subAvatarSrc || logoSrc}
         cycleSec={subCycleSec}
+        offsetSec={25}
         subscribeText={subscribeText}
         subscribedText={subscribedText}
       />
+
+      {/* Barra do Instagram — uma única vez, aos 15s */}
+      {instagramHandle ? (
+        <InstagramBar handle={instagramHandle} appearAtSec={15} />
+      ) : null}
     </div>
   );
 };

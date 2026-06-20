@@ -22,7 +22,8 @@ export type FloatingPhoneProps = {
   subCycleSec?: number;
   subscribeText?: string;  // texto do botão (ex: "Iscriviti" / "Suscríbete")
   subscribedText?: string; // depois do clique (ex: "Iscritto" / "Suscrito")
-  instagramHandle?: string; // @ do Instagram (barra do IG); vazio = não mostra
+  instagramHandle?: string; // @ do Instagram (fixo no código)
+  showInstagram?: boolean;  // liga/desliga a barra do Instagram por render
 };
 
 export const FLOATING_PHONE_DURATION = 150; // fallback 5s @ 30fps
@@ -48,6 +49,7 @@ export const FloatingPhoneShowcase: React.FC<FloatingPhoneProps> = ({
   subscribeText = "Iscriviti",
   subscribedText = "Iscritto",
   instagramHandle = "@mondoferrarif1it",
+  showInstagram = false,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -293,8 +295,8 @@ export const FloatingPhoneShowcase: React.FC<FloatingPhoneProps> = ({
         subscribedText={subscribedText}
       />
 
-      {/* Barra do Instagram — uma única vez, aos 15s */}
-      {instagramHandle ? (
+      {/* Barra do Instagram — só se ativada; uma única vez, aos 15s */}
+      {showInstagram && instagramHandle ? (
         <InstagramBar handle={instagramHandle} appearAtSec={15} />
       ) : null}
     </div>

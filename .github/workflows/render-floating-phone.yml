@@ -45,6 +45,11 @@ on:
         required: false
         default: ""
         type: string
+      show_instagram:
+        description: "Mostrar a barra do Instagram? (true/false)"
+        required: false
+        default: "false"
+        type: string
       concurrency:
         description: "Núcleos usados no render (1-2). O runner gratuito do GitHub tem 2 núcleos."
         required: false
@@ -123,6 +128,7 @@ jobs:
           CHANNEL_HANDLE: ${{ inputs.channel_handle }}
           SUBSCRIBE_TEXT: ${{ inputs.subscribe_text }}
           SUBSCRIBED_TEXT: ${{ inputs.subscribed_text }}
+          SHOW_INSTAGRAM: ${{ inputs.show_instagram }}
         run: |
           node .github/scripts/prep-floating-phone-props.mjs \
             render-job.json \

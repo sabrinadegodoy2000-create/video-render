@@ -79,6 +79,9 @@ const channelName = process.env.CHANNEL_NAME || "Mondo Ferrari F1";
 const channelHandle = process.env.CHANNEL_HANDLE || "@MondoFerrariF1";
 const subscribeText = process.env.SUBSCRIBE_TEXT || "Iscriviti";
 const subscribedText = process.env.SUBSCRIBED_TEXT || "Iscritto";
+const showInstagram = ["1", "true", "yes", "on", "sim"].includes(
+  String(process.env.SHOW_INSTAGRAM || "").toLowerCase()
+);
 
 const totalDuration = Math.ceil(videoDuration(mainPath));
 if (!totalDuration) {
@@ -182,6 +185,7 @@ const props = {
   subscribeText,
   subscribedText,
   subAvatarSrc: avatarPath ? toFileUrl(avatarPath) : "",
+  showInstagram,
 };
 
 fs.writeFileSync(outFile, JSON.stringify(props, null, 2));

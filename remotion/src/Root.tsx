@@ -389,6 +389,7 @@ export const RemotionRoot: React.FC = () => {
             durationSec: 5,
           })),
           durationSec: 130,
+          showInstagram: true,
         }}
         calculateMetadata={({ props }) => ({
           durationInFrames: Math.ceil((props as any).durationSec * FPS),

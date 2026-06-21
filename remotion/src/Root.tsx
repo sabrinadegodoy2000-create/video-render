@@ -53,6 +53,7 @@ import { SourcesCardShowcasePT, SourcesCardShowcaseIT } from "./components/Sourc
 import { SOURCES_CARD_DURATION } from "./components/SourcesCard";
 import { FloatingPhoneShowcase, FLOATING_PHONE_DURATION } from "./FloatingPhoneShowcase";
 import { SubscribePopup, SUBSCRIBE_POPUP_DURATION } from "./SubscribePopup";
+import { F1Broadcast, F1_BROADCAST_DURATION } from "./F1Broadcast";
 const FPS = 30;
 
 const DEMO_PROPS: VideoCompositionProps = {
@@ -408,6 +409,40 @@ export const RemotionRoot: React.FC = () => {
           avatarSrc: staticFile("logo-estranho.png"),
           durationSec: 12,
           cycleSec: 40,
+        }}
+        calculateMetadata={({ props }) => ({
+          durationInFrames: Math.ceil((props as any).durationSec * FPS),
+        })}
+      />
+      <Composition
+        id="F1Broadcast"
+        component={F1Broadcast as any}
+        durationInFrames={F1_BROADCAST_DURATION}
+        fps={FPS}
+        width={1920}
+        height={1080}
+        defaultProps={{
+          bigSegments: [],
+          standings: [
+            { pos: 1, name: "Antonelli", points: 156, teamColor: "#00D2BE", teamLogoSrc: staticFile("logo-mercedes.svg") },
+            { pos: 2, name: "Hamilton", points: 115, teamColor: "#DC0000", teamLogoSrc: staticFile("ferrari-f1-logo.png"), logoScale: 1.45 },
+            { pos: 3, name: "Russell", points: 106, teamColor: "#00D2BE", teamLogoSrc: staticFile("logo-mercedes.svg") },
+            { pos: 4, name: "Leclerc", points: 75, teamColor: "#DC0000", teamLogoSrc: staticFile("ferrari-f1-logo.png"), logoScale: 1.45 },
+            { pos: 5, name: "Norris", points: 73, teamColor: "#FF8000", teamLogoSrc: staticFile("mclaren-f1-logo.png") },
+            { pos: 6, name: "Piastri", points: 68, teamColor: "#FF8000", teamLogoSrc: staticFile("mclaren-f1-logo.png") },
+            { pos: 7, name: "Verstappen", points: 55, teamColor: "#1E41FF", teamLogoSrc: staticFile("redbull-f1-logo.png"), logoScale: 1.35 },
+            { pos: 8, name: "Gasly", points: 41, teamColor: "#0093CC", teamLogoSrc: staticFile("alpine-f1-logo.png") },
+            { pos: 9, name: "Hadjar", points: 34, teamColor: "#1E41FF", teamLogoSrc: staticFile("redbull-f1-logo.png"), logoScale: 1.35 },
+            { pos: 10, name: "Lawson", points: 28, teamColor: "#6692FF", teamLogoSrc: staticFile("racingbulls-logo.webp") },
+          ],
+          programLogoSrc: staticFile("logo-programa.png"),
+          f1LogoSrc: staticFile("logo-f1-aqui.png"),
+          backgroundSrc: staticFile("fundo-tela.png"),
+          driverLeft: { name: "Leclerc", photoSrc: staticFile("leclerc-aqui-foto.png") },
+          driverRight: { name: "Hamilton", photoSrc: staticFile("hamilton-aqui.png") },
+          headline: "FERRARI DOMINA A SESSÃO",
+          subheadline: "Leclerc e Hamilton lideram os treinos livres em Monza",
+          durationSec: 45,
         }}
         calculateMetadata={({ props }) => ({
           durationInFrames: Math.ceil((props as any).durationSec * FPS),

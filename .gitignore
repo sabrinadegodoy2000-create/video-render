@@ -47,6 +47,9 @@ frontend/.vite/
 # Remotion
 remotion/out/
 remotion/.remotion/
+remotion/*-props.json
+remotion/subscribe-popup.mp4
+remotion/*.png
 
 # Mídias baixadas/preparadas durante o render na nuvem
 render-media/

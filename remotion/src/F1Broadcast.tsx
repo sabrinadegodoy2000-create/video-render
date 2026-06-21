@@ -1,4 +1,4 @@
-import { useCurrentFrame, useVideoConfig, Img, OffthreadVideo, interpolate, Sequence, staticFile } from "remotion";
+import { useCurrentFrame, useVideoConfig, Img, OffthreadVideo, Audio, interpolate, Sequence, staticFile } from "remotion";
 import { DriverStandings, Standing } from "./DriverStandings";
 
 export type F1Segment = { src: string; type: "photo" | "video"; durationSec: number };
@@ -19,6 +19,8 @@ export type F1BroadcastProps = {
   subheadline?: string;       // subtítulo
   durationSec: number;
   showEndExpand?: boolean;    // animação final: painel grande toma a tela toda
+  fullscreenMode?: boolean;   // só a grade grande (sem PiP nem classificação) o vídeo todo
+  audioSrc?: string;          // narração (áudios já concatenados)
 };
 
 // Conteúdo fixo (mocado) — pilotos, classificação e assets de marca
@@ -117,6 +119,8 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   subheadline = "",
   durationSec,
   showEndExpand = true,
+  fullscreenMode = false,
+  audioSrc,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -147,12 +151,14 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   // ── Final: nos últimos 4s o painel grande toma a largura toda e os 2 pequenos somem ──
   const totalFrames = Math.round(durationSec * fps);
   const expandStart = totalFrames - 4 * fps;
-  const expand = showEndExpand
-    ? interpolate(frame, [expandStart, expandStart + 0.7 * fps], [0, 1], {
-        extrapolateLeft: "clamp",
-        extrapolateRight: "clamp",
-      })
-    : 0;
+  const expand = fullscreenMode
+    ? 1 // modo narração: grade grande tela cheia o vídeo todo
+    : showEndExpand
+      ? interpolate(frame, [expandStart, expandStart + 0.7 * fps], [0, 1], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+        })
+      : 0;
   const fullGridW = 1920 - PAD * 2;
   const bigWAnim = bigW + (fullGridW - bigW) * expand;        // grande expande
   const smallOpacity = 1 - expand;                            // pequenos somem
@@ -208,21 +214,27 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
         ) : null}
       </PanelFrame>
 
-      {/* ── GRADE PEQUENA 1 (cima-direita): classificação OU imagem fixa ── */}
-      <PanelFrame x={smallXAnim} y={gridTop} w={rightW} h={smallH} opacity={smallOpacity} label="IMAGEM FIXA / CLASSIFICAÇÃO">
-        {standings && standings.length > 0 ? (
-          <DriverStandings width={rightW} height={smallH} standings={standings} f1LogoSrc={f1LogoSrc} />
-        ) : fixedImageSrc ? (
-          <Img src={fixedImageSrc} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        ) : undefined}
-      </PanelFrame>
+      {/* ── Painéis pequenos (classificação + PiP) — só no modo normal ── */}
+      {!fullscreenMode && (
+        <>
+          <PanelFrame x={smallXAnim} y={gridTop} w={rightW} h={smallH} opacity={smallOpacity}>
+            {standings && standings.length > 0 ? (
+              <DriverStandings width={rightW} height={smallH} standings={standings} f1LogoSrc={f1LogoSrc} />
+            ) : fixedImageSrc ? (
+              <Img src={fixedImageSrc} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : undefined}
+          </PanelFrame>
 
-      {/* ── GRADE PEQUENA 2 (baixo-direita): você (PiP) ─────────── */}
-      <PanelFrame x={smallXAnim} y={gridTop + smallH + GAP} w={rightW} h={smallH} opacity={smallOpacity} label="VOCÊ (PiP)">
-        {pipVideoSrc ? (
-          <BlurFillMedia src={pipVideoSrc} isVideo={!isImg(pipVideoSrc)} muted={false} />
-        ) : undefined}
-      </PanelFrame>
+          <PanelFrame x={smallXAnim} y={gridTop + smallH + GAP} w={rightW} h={smallH} opacity={smallOpacity}>
+            {pipVideoSrc ? (
+              <BlurFillMedia src={pipVideoSrc} isVideo={!isImg(pipVideoSrc)} muted={false} />
+            ) : undefined}
+          </PanelFrame>
+        </>
+      )}
+
+      {/* narração (áudios concatenados) */}
+      {audioSrc ? <Audio src={audioSrc} /> : null}
 
       {/* ── RODAPÉ: manchete ───────────────────────────────────── */}
       <div style={{ position: "absolute", left: PAD, top: botBarY, width: 1920 - PAD * 2, height: BOT_H, background: BAR_BG, borderRadius: 0, display: "flex", alignItems: "center", overflow: "hidden" }}>

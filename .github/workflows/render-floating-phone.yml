@@ -30,6 +30,11 @@ on:
         required: false
         default: "true"
         type: string
+      fullscreen:
+        description: "Modo narração: só a grade grande tela cheia + áudios? (true/false)"
+        required: false
+        default: "false"
+        type: string
       concurrency:
         description: "Núcleos usados no render (1-2). O runner gratuito do GitHub tem 2 núcleos."
         required: false
@@ -99,12 +104,27 @@ jobs:
           done
           echo "Normalização concluída."
 
+      - name: Concatenar áudios da narração (modo tela cheia)
+        if: ${{ inputs.fullscreen == 'true' }}
+        run: |
+          cd render-media
+          files=$(ls audio-* 2>/dev/null | sort)
+          if [ -z "$files" ]; then echo "Nenhum áudio (audio-*) encontrado!"; exit 1; fi
+          inputs=""; filters=""; i=0
+          for f in $files; do
+            echo "  + $f"
+            inputs="$inputs -i $f"; filters="$filters[$i:a]"; i=$((i+1))
+          done
+          ffmpeg -y $inputs -filter_complex "${filters}concat=n=$i:v=0:a=1[out]" -map "[out]" -c:a aac -b:a 192k narration.m4a 2>/dev/null
+          echo "Narração: $i áudio(s) concatenados → narration.m4a"
+
       - name: Preparar props (F1Broadcast)
         env:
           MAIN_VIDEO: ${{ inputs.main_video }}
           HEADLINE: ${{ inputs.headline }}
           SUBHEADLINE: ${{ inputs.subheadline }}
           END_EXPAND: ${{ inputs.end_expand }}
+          FULLSCREEN: ${{ inputs.fullscreen }}
         run: |
           node .github/scripts/prep-f1-props.mjs \
             render-job.json \

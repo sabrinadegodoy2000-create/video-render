@@ -1,8 +1,14 @@
 /**
  * Prepara o props.json para a composição F1Broadcast.
- *  - PiP = vídeo principal (você). A duração total = a dele.
- *  - Grade grande = as outras mídias (auto-detectadas), em loop pra preencher a duração.
- *  - headline/subheadline e showEndExpand vêm do app (env). Classificação/pilotos são fixos no componente.
+ *
+ * MODO NORMAL (padrão):
+ *   - PiP = vídeo principal (você). Duração total = a dele.
+ *   - Grade grande = demais mídias (auto-detectadas), em loop pra preencher.
+ *
+ * MODO NARRAÇÃO (FULLSCREEN=true):
+ *   - Sem PiP nem classificação. Só a grade grande em TELA CHEIA.
+ *   - Duração = áudio narration.m4a (áudios já concatenados no workflow).
+ *   - Grade grande = mídias de fundo em loop pra preencher a narração.
  *
  * Uso: node prep-f1-props.mjs <render-job.json> <pasta-midias> <props.json>
  */
@@ -18,6 +24,7 @@ if (!jobFile || !mediaDir || !outFile) {
 
 const job = JSON.parse(fs.readFileSync(jobFile, "utf-8"));
 const SECONDS_PER_ITEM = Number(job.secondsPerItem) > 0 ? Number(job.secondsPerItem) : 3;
+const fullscreen = ["1", "true", "yes", "on", "sim"].includes(String(process.env.FULLSCREEN || "").toLowerCase());
 
 function resolveMedia(filename, label) {
   if (!filename) throw new Error(`Campo "${label}" vazio`);
@@ -29,11 +36,9 @@ function resolveMedia(filename, label) {
   return p;
 }
 
-function toFileUrl(absPath) {
-  return "file://" + absPath.split(path.sep).join("/");
-}
+const toFileUrl = (absPath) => "file://" + absPath.split(path.sep).join("/");
 
-function videoDuration(absPath) {
+function mediaDuration(absPath) {
   try {
     const out = execFileSync("ffprobe", [
       "-v", "error", "-show_entries", "format=duration",
@@ -49,25 +54,32 @@ function videoDuration(absPath) {
 const VIDEO_EXTS = new Set([".mp4", ".mov", ".mkv", ".webm", ".avi"]);
 const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"]);
 
-// ── PiP (vídeo principal — você) ─────────────────────────────────
-const pipFile = process.env.MAIN_VIDEO || job.mainVideo || job.portrait;
-const pipPath = resolveMedia(pipFile, "mainVideo");
-const totalDuration = Math.ceil(videoDuration(pipPath));
-if (!totalDuration) throw new Error("Não consegui medir a duração do vídeo PiP (mainVideo).");
-console.log(`[PREP] PiP: ${path.basename(pipPath)} — ${totalDuration}s`);
+// ── Fonte da duração ─────────────────────────────────────────────
+let totalDuration, pipPath = null, audioPath = null, pipFile = "";
+if (fullscreen) {
+  audioPath = resolveMedia("narration.m4a", "narração");
+  totalDuration = Math.ceil(mediaDuration(audioPath));
+  if (!totalDuration) throw new Error("Não consegui medir a duração da narração (narration.m4a).");
+  console.log(`[PREP] Modo NARRAÇÃO — duração ${totalDuration}s`);
+} else {
+  pipFile = process.env.MAIN_VIDEO || job.mainVideo || job.portrait;
+  pipPath = resolveMedia(pipFile, "mainVideo");
+  totalDuration = Math.ceil(mediaDuration(pipPath));
+  if (!totalDuration) throw new Error("Não consegui medir a duração do vídeo PiP (mainVideo).");
+  console.log(`[PREP] Modo NORMAL — PiP ${path.basename(pipPath)} — ${totalDuration}s`);
+}
 
-// ── Grade grande (fundo) — auto-detecta tudo menos o PiP ─────────
+// ── Grade grande (fundo) — auto-detecta imagens/vídeos ───────────
 let wideInput = Array.isArray(job.wide) ? job.wide : null;
 if (!wideInput) {
-  const reserved = new Set([path.basename(pipFile), "floating-phone-output.mp4"]);
+  const reserved = new Set(["floating-phone-output.mp4", "narration.m4a"]);
+  if (pipFile) reserved.add(path.basename(pipFile));
   wideInput = fs.readdirSync(mediaDir).filter((f) => {
     if (reserved.has(f)) return false;
     const ext = path.extname(f).toLowerCase();
     return VIDEO_EXTS.has(ext) || IMAGE_EXTS.has(ext);
   }).sort();
-  if (wideInput.length === 0) {
-    throw new Error("Nenhuma mídia de fundo encontrada (suba imagens/vídeos além do PiP).");
-  }
+  if (wideInput.length === 0) throw new Error("Nenhuma mídia de fundo encontrada (suba imagens/vídeos).");
   console.log(`[PREP] Fundo auto-detectado: ${wideInput.length} mídia(s)`);
 }
 
@@ -94,13 +106,19 @@ console.log(`[PREP] ${base.length} mídia(s) de fundo → ${bigSegments.length} 
 const showEndExpand = ["1", "true", "yes", "on", "sim"].includes(String(process.env.END_EXPAND || "").toLowerCase());
 
 const props = {
-  pipVideoSrc: toFileUrl(pipPath),
   bigSegments,
   durationSec: totalDuration,
   headline: process.env.HEADLINE || "",
   subheadline: process.env.SUBHEADLINE || "",
-  showEndExpand,
 };
 
+if (fullscreen) {
+  props.fullscreenMode = true;
+  props.audioSrc = toFileUrl(audioPath);
+} else {
+  props.pipVideoSrc = toFileUrl(pipPath);
+  props.showEndExpand = showEndExpand;
+}
+
 fs.writeFileSync(outFile, JSON.stringify(props, null, 2));
-console.log(`[PREP] props.json escrito (showEndExpand=${showEndExpand}, headline="${props.headline}")`);
+console.log(`[PREP] props.json escrito (fullscreen=${fullscreen})`);

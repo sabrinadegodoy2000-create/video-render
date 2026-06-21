@@ -1,8 +1,8 @@
-name: Render FloatingPhone
+name: Render F1Broadcast
 run-name: Render ${{ inputs.release_tag }}
 
 # Dispara manualmente pela aba "Actions" do GitHub.
-# Informe a TAG do Release que contém as mídias (vídeo 9:16, logo, fotos/vídeos do 16:9).
+# Informe a TAG do Release com as mídias (vídeo PiP + mídias de fundo).
 on:
   workflow_dispatch:
     inputs:
@@ -11,44 +11,24 @@ on:
         required: true
         type: string
       main_video:
-        description: "Nome do arquivo do vídeo principal (PiP). Vazio = usa o render-job.json"
+        description: "Nome do arquivo do vídeo PiP (você). Vazio = usa o render-job.json"
         required: false
         default: ""
         type: string
-      logo:
-        description: "Nome do arquivo do logo (opcional). Vazio = sem logo"
+      headline:
+        description: "Manchete do rodapé (italiano)"
         required: false
         default: ""
         type: string
-      avatar:
-        description: "Nome do arquivo da foto do canal (avatar do popup)"
+      subheadline:
+        description: "Subtítulo do rodapé"
         required: false
         default: ""
         type: string
-      channel_name:
-        description: "Nome do canal no popup de inscrição"
+      end_expand:
+        description: "Animação final (grade grande toma a tela)? (true/false)"
         required: false
-        default: ""
-        type: string
-      channel_handle:
-        description: "@ do canal no popup"
-        required: false
-        default: ""
-        type: string
-      subscribe_text:
-        description: "Texto do botão (ex: Iscriviti, Suscríbete)"
-        required: false
-        default: ""
-        type: string
-      subscribed_text:
-        description: "Texto após inscrever (ex: Iscritto, Suscrito)"
-        required: false
-        default: ""
-        type: string
-      show_instagram:
-        description: "Mostrar a barra do Instagram? (true/false)"
-        required: false
-        default: "false"
+        default: "true"
         type: string
       concurrency:
         description: "Núcleos usados no render (1-2). O runner gratuito do GitHub tem 2 núcleos."
@@ -119,31 +99,27 @@ jobs:
           done
           echo "Normalização concluída."
 
-      - name: Preparar props (loop + startSec + durações)
+      - name: Preparar props (F1Broadcast)
         env:
           MAIN_VIDEO: ${{ inputs.main_video }}
-          LOGO: ${{ inputs.logo }}
-          AVATAR: ${{ inputs.avatar }}
-          CHANNEL_NAME: ${{ inputs.channel_name }}
-          CHANNEL_HANDLE: ${{ inputs.channel_handle }}
-          SUBSCRIBE_TEXT: ${{ inputs.subscribe_text }}
-          SUBSCRIBED_TEXT: ${{ inputs.subscribed_text }}
-          SHOW_INSTAGRAM: ${{ inputs.show_instagram }}
+          HEADLINE: ${{ inputs.headline }}
+          SUBHEADLINE: ${{ inputs.subheadline }}
+          END_EXPAND: ${{ inputs.end_expand }}
         run: |
-          node .github/scripts/prep-floating-phone-props.mjs \
+          node .github/scripts/prep-f1-props.mjs \
             render-job.json \
             render-media \
             props.json
           echo "----- props.json -----"
           cat props.json
 
-      - name: Renderizar com Remotion (FloatingPhone)
+      - name: Renderizar com Remotion (F1Broadcast)
         working-directory: remotion
         run: |
           node render.mjs \
             --props ../props.json \
             --output ../floating-phone-output.mp4 \
-            --composition FloatingPhone \
+            --composition F1Broadcast \
             --concurrency ${{ inputs.concurrency }}
 
       - name: Enviar o vídeo final de volta ao Release

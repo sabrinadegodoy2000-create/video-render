@@ -54,6 +54,7 @@ import { SOURCES_CARD_DURATION } from "./components/SourcesCard";
 import { FloatingPhoneShowcase, FLOATING_PHONE_DURATION } from "./FloatingPhoneShowcase";
 import { SubscribePopup, SUBSCRIBE_POPUP_DURATION } from "./SubscribePopup";
 import { F1Broadcast, F1_BROADCAST_DURATION } from "./F1Broadcast";
+import { TrackMap3D } from "./TrackMap3D";
 const FPS = 30;
 
 const DEMO_PROPS: VideoCompositionProps = {
@@ -443,10 +444,36 @@ export const RemotionRoot: React.FC = () => {
           headline: "FERRARI DOMINA A SESSÃO",
           subheadline: "Leclerc e Hamilton lideram os treinos livres em Monza",
           durationSec: 45,
+          nextGP: {
+            label: "PROSSIMO GP",
+            name: "Gran Premio di Spagna",
+            circuit: "Barcelona-Catalunya",
+            flagSrc: "https://flagcdn.com/w320/es.png",
+          },
+          trackPath: "M18,70 C12,55 18,42 30,40 C40,38 44,48 52,46 C62,43 60,30 70,26 C82,21 90,34 84,46 C80,54 70,52 68,60 C66,70 76,70 74,79 C72,86 60,86 52,80 C44,74 46,66 38,66 C28,66 26,80 18,70 Z",
         }}
         calculateMetadata={({ props }) => ({
           durationInFrames: Math.ceil((props as any).durationSec * FPS),
         })}
+      />
+      <Composition
+        id="TrackMap3D"
+        component={TrackMap3D as any}
+        durationInFrames={5 * FPS}
+        fps={FPS}
+        width={1018}
+        height={650}
+        defaultProps={{
+          width: 1018,
+          height: 650,
+          gp: {
+            label: "PROSSIMO GP",
+            name: "Gran Premio di Spagna",
+            circuit: "Barcelona-Catalunya",
+            flagSrc: "https://flagcdn.com/w320/es.png",
+          },
+          trackPath: "M18,70 C12,55 18,42 30,40 C40,38 44,48 52,46 C62,43 60,30 70,26 C82,21 90,34 84,46 C80,54 70,52 68,60 C66,70 76,70 74,79 C72,86 60,86 52,80 C44,74 46,66 38,66 C28,66 26,80 18,70 Z",
+        }}
       />
     </>
   );

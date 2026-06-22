@@ -1,5 +1,6 @@
-import { useCurrentFrame, useVideoConfig, Img, OffthreadVideo, Audio, interpolate, Sequence, staticFile } from "remotion";
+import { useCurrentFrame, useVideoConfig, Img, OffthreadVideo, Audio, interpolate, Sequence, Loop, staticFile } from "remotion";
 import { DriverStandings, Standing } from "./DriverStandings";
+import { TrackMap3D, GPInfo } from "./TrackMap3D";
 
 export type F1Segment = { src: string; type: "photo" | "video"; durationSec: number };
 
@@ -21,6 +22,8 @@ export type F1BroadcastProps = {
   showEndExpand?: boolean;    // animação final: painel grande toma a tela toda
   fullscreenMode?: boolean;   // só a grade grande (sem PiP nem classificação) o vídeo todo
   audioSrc?: string;          // narração (áudios já concatenados)
+  nextGP?: GPInfo;            // próximo GP (pista 3D) — alterna com a classificação
+  trackPath?: string;         // traçado SVG do circuito
 };
 
 // Conteúdo fixo (mocado) — pilotos, classificação e assets de marca
@@ -105,6 +108,41 @@ const BlurFillMedia: React.FC<{ src: string; isVideo: boolean; muted?: boolean; 
   </>
 );
 
+// Overlay da pista 3D com fade in/out (frame relativo à Sequence)
+const TrackOverlay: React.FC<{ width: number; height: number; gp: GPInfo; trackPath: string; durFrames: number }> = ({ width, height, gp, trackPath, durFrames }) => {
+  const f = useCurrentFrame();
+  const op = interpolate(f, [0, 12, durFrames - 12, durFrames], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  return (
+    <div style={{ position: "absolute", inset: 0, opacity: op }}>
+      <TrackMap3D width={width} height={height} gp={gp} trackPath={trackPath} />
+    </div>
+  );
+};
+
+// Painel pequeno superior: classificação (base) + pista 3D entrando de tempos em tempos
+const SmallPanelContent: React.FC<{ width: number; height: number; standings?: Standing[]; fixedImageSrc?: string; f1LogoSrc?: string; gp?: GPInfo; trackPath?: string }> = ({ width, height, standings, fixedImageSrc, f1LogoSrc, gp, trackPath }) => {
+  const { fps } = useVideoConfig();
+  const CYCLE = Math.round(40 * fps);  // a cada 40s
+  const TRACK_AT = Math.round(24 * fps); // pista entra aos 24s do ciclo
+  const TRACK_DUR = Math.round(10 * fps); // fica 10s
+  return (
+    <>
+      {standings && standings.length > 0 ? (
+        <DriverStandings width={width} height={height} standings={standings} f1LogoSrc={f1LogoSrc} />
+      ) : fixedImageSrc ? (
+        <Img src={fixedImageSrc} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      ) : null}
+      {gp && trackPath ? (
+        <Loop durationInFrames={CYCLE}>
+          <Sequence from={TRACK_AT} durationInFrames={TRACK_DUR} layout="none">
+            <TrackOverlay width={width} height={height} gp={gp} trackPath={trackPath} durFrames={TRACK_DUR} />
+          </Sequence>
+        </Loop>
+      ) : null}
+    </>
+  );
+};
+
 export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   bigSegments,
   fixedImageSrc,
@@ -121,6 +159,8 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   showEndExpand = true,
   fullscreenMode = false,
   audioSrc,
+  nextGP,
+  trackPath,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -218,11 +258,7 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
       {!fullscreenMode && (
         <>
           <PanelFrame x={smallXAnim} y={gridTop} w={rightW} h={smallH} opacity={smallOpacity}>
-            {standings && standings.length > 0 ? (
-              <DriverStandings width={rightW} height={smallH} standings={standings} f1LogoSrc={f1LogoSrc} />
-            ) : fixedImageSrc ? (
-              <Img src={fixedImageSrc} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            ) : undefined}
+            <SmallPanelContent width={rightW} height={smallH} standings={standings} fixedImageSrc={fixedImageSrc} f1LogoSrc={f1LogoSrc} gp={nextGP} trackPath={trackPath} />
           </PanelFrame>
 
           <PanelFrame x={smallXAnim} y={gridTop + smallH + GAP} w={rightW} h={smallH} opacity={smallOpacity}>

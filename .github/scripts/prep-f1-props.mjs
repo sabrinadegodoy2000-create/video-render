@@ -54,6 +54,97 @@ function mediaDuration(absPath) {
 const VIDEO_EXTS = new Set([".mp4", ".mov", ".mkv", ".webm", ".avi"]);
 const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"]);
 
+// ── Próximo GP (Jolpica) + traçado real (f1-circuits) ────────────
+const RACE_IT = {
+  "Bahrain Grand Prix": "Gran Premio del Bahrain",
+  "Saudi Arabian Grand Prix": "Gran Premio dell'Arabia Saudita",
+  "Australian Grand Prix": "Gran Premio d'Australia",
+  "Japanese Grand Prix": "Gran Premio del Giappone",
+  "Chinese Grand Prix": "Gran Premio della Cina",
+  "Miami Grand Prix": "Gran Premio di Miami",
+  "Emilia Romagna Grand Prix": "Gran Premio dell'Emilia-Romagna",
+  "Monaco Grand Prix": "Gran Premio di Monaco",
+  "Canadian Grand Prix": "Gran Premio del Canada",
+  "Spanish Grand Prix": "Gran Premio di Spagna",
+  "Austrian Grand Prix": "Gran Premio d'Austria",
+  "British Grand Prix": "Gran Premio di Gran Bretagna",
+  "Hungarian Grand Prix": "Gran Premio d'Ungheria",
+  "Belgian Grand Prix": "Gran Premio del Belgio",
+  "Dutch Grand Prix": "Gran Premio d'Olanda",
+  "Italian Grand Prix": "Gran Premio d'Italia",
+  "Azerbaijan Grand Prix": "Gran Premio dell'Azerbaigian",
+  "Singapore Grand Prix": "Gran Premio di Singapore",
+  "United States Grand Prix": "Gran Premio degli Stati Uniti",
+  "Mexico City Grand Prix": "Gran Premio del Messico",
+  "São Paulo Grand Prix": "Gran Premio del Brasile",
+  "Las Vegas Grand Prix": "Gran Premio di Las Vegas",
+  "Qatar Grand Prix": "Gran Premio del Qatar",
+  "Abu Dhabi Grand Prix": "Gran Premio di Abu Dhabi",
+};
+const COUNTRY_ISO = {
+  Bahrain: "bh", "Saudi Arabia": "sa", Australia: "au", Japan: "jp", China: "cn",
+  USA: "us", "United States": "us", Italy: "it", Monaco: "mc", Canada: "ca",
+  Spain: "es", Austria: "at", UK: "gb", "United Kingdom": "gb", Hungary: "hu",
+  Belgium: "be", Netherlands: "nl", Azerbaijan: "az", Singapore: "sg", Mexico: "mx",
+  Brazil: "br", Qatar: "qa", UAE: "ae", "United Arab Emirates": "ae", France: "fr",
+};
+
+const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
+
+function coordsToPath(coords) {
+  const xs = coords.map((c) => c[0]), ys = coords.map((c) => c[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const w = maxX - minX || 1, h = maxY - minY || 1;
+  const span = 84, sc = Math.min(span / w, span / h);
+  const offX = (100 - w * sc) / 2, offY = (100 - h * sc) / 2;
+  const pts = coords.map(([x, y]) => [
+    +(offX + (x - minX) * sc).toFixed(2),
+    +(offY + (maxY - y) * sc).toFixed(2), // inverte Y (lat sobe; SVG y desce)
+  ]);
+  return "M" + pts.map((p) => `${p[0]},${p[1]}`).join(" L") + " Z";
+}
+
+async function fetchNextGP() {
+  try {
+    const r = await fetch("https://api.jolpi.ca/ergast/f1/current/next.json");
+    const data = await r.json();
+    const race = data?.MRData?.RaceTable?.Races?.[0];
+    if (!race) { console.warn("[GP] Sem próxima corrida na API."); return null; }
+    const circuit = race.Circuit;
+    const country = circuit?.Location?.country || "";
+    const iso = COUNTRY_ISO[country];
+
+    // traçado real
+    let trackPath = null;
+    try {
+      const geo = await (await fetch("https://raw.githubusercontent.com/bacinger/f1-circuits/master/f1-circuits.geojson")).json();
+      const target = norm(circuit.circuitName);
+      const feats = geo.features || [];
+      let f = feats.find((ft) => norm(ft.properties?.Name) === target)
+        || feats.find((ft) => { const n = norm(ft.properties?.Name); return n && (n.includes(target) || target.includes(n)); })
+        || feats.find((ft) => norm(ft.properties?.Location) === norm(circuit.Location?.locality));
+      if (f) {
+        const g = f.geometry;
+        const coords = g.type === "LineString" ? g.coordinates : g.type === "MultiLineString" ? g.coordinates.flat() : null;
+        if (coords && coords.length > 2) trackPath = coordsToPath(coords);
+      }
+      if (!trackPath) console.warn(`[GP] Traçado não encontrado pra "${circuit.circuitName}".`);
+    } catch (e) { console.warn("[GP] Falha ao buscar traçado:", e.message); }
+
+    const gp = {
+      label: "PROSSIMO GP",
+      name: RACE_IT[race.raceName] || race.raceName,
+      circuit: circuit.circuitName,
+      flagSrc: iso ? `https://flagcdn.com/w320/${iso}.png` : undefined,
+    };
+    console.log(`[GP] Próximo: ${gp.name} (${gp.circuit}) — traçado: ${trackPath ? "ok" : "—"}`);
+    return { gp, trackPath };
+  } catch (e) {
+    console.warn("[GP] Falha ao buscar próximo GP:", e.message);
+    return null;
+  }
+}
+
 // ── Fonte da duração ─────────────────────────────────────────────
 let totalDuration, pipPath = null, audioPath = null, pipFile = "";
 if (fullscreen) {
@@ -118,6 +209,13 @@ if (fullscreen) {
 } else {
   props.pipVideoSrc = toFileUrl(pipPath);
   props.showEndExpand = showEndExpand;
+
+  // pista do próximo GP (só no modo normal, onde tem o painel pequeno)
+  const gpData = await fetchNextGP();
+  if (gpData?.gp && gpData?.trackPath) {
+    props.nextGP = gpData.gp;
+    props.trackPath = gpData.trackPath;
+  }
 }
 
 fs.writeFileSync(outFile, JSON.stringify(props, null, 2));

@@ -20,7 +20,7 @@ export type F1BroadcastProps = {
   subheadline?: string;       // subtítulo
   durationSec: number;
   showEndExpand?: boolean;    // animação final: painel grande toma a tela toda
-  fullscreenMode?: boolean;   // só a grade grande (sem PiP nem classificação) o vídeo todo
+  fullscreenMode?: boolean;   // modo narração: sem PiP (pista fica no lugar dele, classificação em cima)
   audioSrc?: string;          // narração (áudios já concatenados)
   nextGP?: GPInfo;            // próximo GP (pista 3D) — alterna com a classificação
   trackPath?: string;         // traçado SVG do circuito
@@ -191,14 +191,12 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   // ── Final: nos últimos 4s o painel grande toma a largura toda e os 2 pequenos somem ──
   const totalFrames = Math.round(durationSec * fps);
   const expandStart = totalFrames - 4 * fps;
-  const expand = fullscreenMode
-    ? 1 // modo narração: grade grande tela cheia o vídeo todo
-    : showEndExpand
-      ? interpolate(frame, [expandStart, expandStart + 0.7 * fps], [0, 1], {
-          extrapolateLeft: "clamp",
-          extrapolateRight: "clamp",
-        })
-      : 0;
+  const expand = showEndExpand
+    ? interpolate(frame, [expandStart, expandStart + 0.7 * fps], [0, 1], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      })
+    : 0;
   const fullGridW = 1920 - PAD * 2;
   const bigWAnim = bigW + (fullGridW - bigW) * expand;        // grande expande
   const smallOpacity = 1 - expand;                            // pequenos somem
@@ -254,20 +252,29 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
         ) : null}
       </PanelFrame>
 
-      {/* ── Painéis pequenos (classificação + PiP) — só no modo normal ── */}
-      {!fullscreenMode && (
-        <>
-          <PanelFrame x={smallXAnim} y={gridTop} w={rightW} h={smallH} opacity={smallOpacity}>
+      {/* ── Painéis pequenos (cima = classificação/pista, baixo = PiP/pista) ── */}
+      <>
+        <PanelFrame x={smallXAnim} y={gridTop} w={rightW} h={smallH} opacity={smallOpacity}>
+          {fullscreenMode ? (
+            // narração: classificação fixa em cima
+            <DriverStandings width={rightW} height={smallH} standings={standings} f1LogoSrc={f1LogoSrc} />
+          ) : (
+            // normal: intercala classificação ↔ próximo GP
             <SmallPanelContent width={rightW} height={smallH} standings={standings} fixedImageSrc={fixedImageSrc} f1LogoSrc={f1LogoSrc} gp={nextGP} trackPath={trackPath} />
-          </PanelFrame>
+          )}
+        </PanelFrame>
 
-          <PanelFrame x={smallXAnim} y={gridTop + smallH + GAP} w={rightW} h={smallH} opacity={smallOpacity}>
-            {pipVideoSrc ? (
-              <BlurFillMedia src={pipVideoSrc} isVideo={!isImg(pipVideoSrc)} muted={false} />
-            ) : undefined}
-          </PanelFrame>
-        </>
-      )}
+        <PanelFrame x={smallXAnim} y={gridTop + smallH + GAP} w={rightW} h={smallH} opacity={smallOpacity}>
+          {fullscreenMode ? (
+            // narração: sem PiP → pista do próximo GP fixa embaixo
+            nextGP && trackPath ? (
+              <TrackMap3D width={rightW} height={smallH} gp={nextGP} trackPath={trackPath} />
+            ) : undefined
+          ) : pipVideoSrc ? (
+            <BlurFillMedia src={pipVideoSrc} isVideo={!isImg(pipVideoSrc)} muted={false} />
+          ) : undefined}
+        </PanelFrame>
+      </>
 
       {/* narração (áudios concatenados) */}
       {audioSrc ? <Audio src={audioSrc} /> : null}

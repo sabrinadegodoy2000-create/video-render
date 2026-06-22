@@ -54,7 +54,6 @@ import { SOURCES_CARD_DURATION } from "./components/SourcesCard";
 import { FloatingPhoneShowcase, FLOATING_PHONE_DURATION } from "./FloatingPhoneShowcase";
 import { SubscribePopup, SUBSCRIBE_POPUP_DURATION } from "./SubscribePopup";
 import { F1Broadcast, F1_BROADCAST_DURATION } from "./F1Broadcast";
-import { TrackMap3D } from "./TrackMap3D";
 const FPS = 30;
 
 const DEMO_PROPS: VideoCompositionProps = {
@@ -446,34 +445,15 @@ export const RemotionRoot: React.FC = () => {
           durationSec: 45,
           nextGP: {
             label: "PROSSIMO GP",
-            name: "Gran Premio di Spagna",
-            circuit: "Barcelona-Catalunya",
-            flagSrc: "https://flagcdn.com/w320/es.png",
+            name: "Gran Premio d'Austria",
+            circuit: "Red Bull Ring",
+            flagSrc: "https://flagcdn.com/w320/at.png",
           },
-          trackPath: "M18,70 C12,55 18,42 30,40 C40,38 44,48 52,46 C62,43 60,30 70,26 C82,21 90,34 84,46 C80,54 70,52 68,60 C66,70 76,70 74,79 C72,86 60,86 52,80 C44,74 46,66 38,66 C28,66 26,80 18,70 Z",
+          trackPath: "M63.99,64.25 L58.20,65.30 L43.87,67.95 L42.88,68.00 L42.22,67.59 L41.11,66.13 L37.60,62.91 L33.79,59.23 L30.79,55.98 L28.06,52.78 L23.60,46.16 L22.36,44.40 L20.47,42.32 L17.57,39.91 L12.74,36.61 L8.27,33.58 L8.00,33.17 L8.03,32.74 L8.54,32.53 L9.71,32.39 L13.37,32.10 L17.03,32.00 L20.81,32.03 L24.41,32.27 L28.58,32.72 L41.32,34.39 L47.13,34.92 L59.70,35.28 L60.72,35.51 L61.35,35.99 L61.59,36.52 L61.53,37.07 L61.20,37.59 L59.94,38.81 L58.95,39.62 L57.12,40.72 L55.11,41.46 L52.68,42.01 L50.04,42.30 L47.29,42.18 L36.58,41.01 L35.14,41.13 L33.97,41.41 L32.95,41.89 L32.05,42.54 L31.48,43.30 L31.18,44.14 L31.12,44.90 L31.30,45.74 L31.63,46.36 L36.82,52.52 L37.69,53.17 L39.07,53.76 L40.66,54.00 L42.19,53.91 L43.81,53.45 L44.80,52.90 L45.82,52.04 L46.78,51.21 L47.80,50.49 L49.02,49.92 L50.46,49.34 L52.48,48.84 L54.57,48.53 L71.19,48.29 L83.96,48.08 L85.31,48.10 L86.63,48.41 L87.71,48.96 L88.58,49.70 L89.24,50.68 L91.85,56.65 L92.00,57.20 L91.85,57.61 L91.55,57.92 L90.53,58.47 L89.18,59.01 L87.44,59.61 L85.46,60.18 L83.12,60.71 L63.99,64.25 Z",
         }}
         calculateMetadata={({ props }) => ({
           durationInFrames: Math.ceil((props as any).durationSec * FPS),
         })}
-      />
-      <Composition
-        id="TrackMap3D"
-        component={TrackMap3D as any}
-        durationInFrames={5 * FPS}
-        fps={FPS}
-        width={1018}
-        height={650}
-        defaultProps={{
-          width: 1018,
-          height: 650,
-          gp: {
-            label: "PROSSIMO GP",
-            name: "Gran Premio di Spagna",
-            circuit: "Barcelona-Catalunya",
-            flagSrc: "https://flagcdn.com/w320/es.png",
-          },
-          trackPath: "M18,70 C12,55 18,42 30,40 C40,38 44,48 52,46 C62,43 60,30 70,26 C82,21 90,34 84,46 C80,54 70,52 68,60 C66,70 76,70 74,79 C72,86 60,86 52,80 C44,74 46,66 38,66 C28,66 26,80 18,70 Z",
-        }}
       />
     </>
   );

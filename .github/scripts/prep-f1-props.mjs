@@ -6,7 +6,7 @@
  *   - Grade grande = demais mídias (auto-detectadas), em loop pra preencher.
  *
  * MODO NARRAÇÃO (FULLSCREEN=true):
- *   - Sem PiP nem classificação. Só a grade grande em TELA CHEIA.
+ *   - Sem PiP. Layout normal: classificação em cima, pista do próximo GP embaixo.
  *   - Duração = áudio narration.m4a (áudios já concatenados no workflow).
  *   - Grade grande = mídias de fundo em loop pra preencher a narração.
  *
@@ -209,13 +209,15 @@ if (fullscreen) {
 } else {
   props.pipVideoSrc = toFileUrl(pipPath);
   props.showEndExpand = showEndExpand;
+}
 
-  // pista do próximo GP (só no modo normal, onde tem o painel pequeno)
-  const gpData = await fetchNextGP();
-  if (gpData?.gp && gpData?.trackPath) {
-    props.nextGP = gpData.gp;
-    props.trackPath = gpData.trackPath;
-  }
+// pista do próximo GP — usada nos dois modos:
+//   normal    → intercala com a classificação no painel de cima
+//   narração  → fica fixa embaixo (no lugar do PiP)
+const gpData = await fetchNextGP();
+if (gpData?.gp && gpData?.trackPath) {
+  props.nextGP = gpData.gp;
+  props.trackPath = gpData.trackPath;
 }
 
 fs.writeFileSync(outFile, JSON.stringify(props, null, 2));

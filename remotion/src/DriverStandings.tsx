@@ -7,6 +7,7 @@ export type Standing = {
   teamColor: string;       // cor da equipe (preenche a linha)
   teamLogoSrc?: string;    // logo da equipe/montadora
   logoScale?: number;      // ajuste fino do tamanho do logo (1 = padrão)
+  team?: string;           // constructorId (ex: "ferrari") — resolve cor/logo automaticamente
 };
 
 export type DriverStandingsProps = {

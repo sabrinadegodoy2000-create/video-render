@@ -40,6 +40,36 @@ const DEFAULT_STANDINGS: Standing[] = [
   { pos: 10, name: "Lawson", points: 28, teamColor: "#6692FF", teamLogoSrc: staticFile("racingbulls-logo.webp") },
 ];
 
+// ── Estilo por equipe (constructorId da API) — cor + logo + ajuste ──
+// Times sem logo no projeto caem no fallback (caixinha branca), mas mantêm a cor.
+const TEAM_STYLE: Record<string, { color: string; logo?: string; scale?: number }> = {
+  mercedes:     { color: "#00D2BE", logo: staticFile("logo-mercedes.svg") },
+  ferrari:      { color: "#DC0000", logo: staticFile("ferrari-f1-logo.png"), scale: 1.45 },
+  mclaren:      { color: "#FF8000", logo: staticFile("mclaren-f1-logo.png") },
+  red_bull:     { color: "#1E41FF", logo: staticFile("redbull-f1-logo.png"), scale: 1.35 },
+  alpine:       { color: "#0093CC", logo: staticFile("alpine-f1-logo.png") },
+  rb:           { color: "#6692FF", logo: staticFile("racingbulls-logo.webp") },
+  haas:         { color: "#9C9FA2" },
+  williams:     { color: "#005AFF" },
+  audi:         { color: "#00594F" },
+  aston_martin: { color: "#006F62" },
+  cadillac:     { color: "#9A7B4F" },
+};
+
+// Preenche cor/logo/escala a partir do constructorId, sem sobrescrever o que já veio.
+function resolveStandings(list: Standing[]): Standing[] {
+  return list.map((s) => {
+    const st = s.team ? TEAM_STYLE[s.team] : undefined;
+    if (!st) return s;
+    return {
+      ...s,
+      teamColor: s.teamColor || st.color,
+      teamLogoSrc: s.teamLogoSrc ?? st.logo,
+      logoScale: s.logoScale ?? st.scale,
+    };
+  });
+}
+
 export const F1_BROADCAST_DURATION = 30 * 30;
 
 // ── Paleta Ferrari ────────────────────────────────────────────────
@@ -165,6 +195,9 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
+  // resolve cor/logo das equipes a partir do constructorId (classificação automática)
+  const resolvedStandings = resolveStandings(standings);
+
   // ── Layout (1920x1080) ──────────────────────────────────────────
   const PAD = 22;
   const TOP_H = 104;
@@ -257,10 +290,10 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
         <PanelFrame x={smallXAnim} y={gridTop} w={rightW} h={smallH} opacity={smallOpacity}>
           {fullscreenMode ? (
             // narração: classificação fixa em cima
-            <DriverStandings width={rightW} height={smallH} standings={standings} f1LogoSrc={f1LogoSrc} />
+            <DriverStandings width={rightW} height={smallH} standings={resolvedStandings} f1LogoSrc={f1LogoSrc} />
           ) : (
             // normal: intercala classificação ↔ próximo GP
-            <SmallPanelContent width={rightW} height={smallH} standings={standings} fixedImageSrc={fixedImageSrc} f1LogoSrc={f1LogoSrc} gp={nextGP} trackPath={trackPath} />
+            <SmallPanelContent width={rightW} height={smallH} standings={resolvedStandings} fixedImageSrc={fixedImageSrc} f1LogoSrc={f1LogoSrc} gp={nextGP} trackPath={trackPath} />
           )}
         </PanelFrame>
 

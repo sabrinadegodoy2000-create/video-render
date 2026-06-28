@@ -145,6 +145,26 @@ async function fetchNextGP() {
   }
 }
 
+async function fetchStandings(topN = 10) {
+  try {
+    const r = await fetch("https://api.jolpi.ca/ergast/f1/current/driverStandings.json");
+    const data = await r.json();
+    const list = data?.MRData?.StandingsTable?.StandingsLists?.[0]?.DriverStandings;
+    if (!list || !list.length) { console.warn("[STANDINGS] Sem classificação na API."); return null; }
+    const standings = list.slice(0, topN).map((d) => ({
+      pos: Number(d.position),
+      name: d.Driver?.familyName || d.Driver?.code || "",
+      points: Number(d.points),
+      team: d.Constructors?.[0]?.constructorId || "",
+    }));
+    console.log(`[STANDINGS] Top ${standings.length}: ` + standings.map((s) => `${s.pos}.${s.name}(${s.points})`).join(" "));
+    return standings;
+  } catch (e) {
+    console.warn("[STANDINGS] Falha ao buscar classificação:", e.message);
+    return null;
+  }
+}
+
 // ── Fonte da duração ─────────────────────────────────────────────
 let totalDuration, pipPath = null, audioPath = null, pipFile = "";
 if (fullscreen) {
@@ -218,6 +238,13 @@ const gpData = await fetchNextGP();
 if (gpData?.gp && gpData?.trackPath) {
   props.nextGP = gpData.gp;
   props.trackPath = gpData.trackPath;
+}
+
+// classificação dos pilotos ao vivo (Top 10) — usada nos dois modos.
+// Se a API falhar, o componente cai no DEFAULT_STANDINGS embutido.
+const standings = await fetchStandings(10);
+if (standings && standings.length) {
+  props.standings = standings;
 }
 
 fs.writeFileSync(outFile, JSON.stringify(props, null, 2));

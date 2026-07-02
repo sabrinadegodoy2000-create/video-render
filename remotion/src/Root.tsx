@@ -54,6 +54,7 @@ import { SOURCES_CARD_DURATION } from "./components/SourcesCard";
 import { FloatingPhoneShowcase, FLOATING_PHONE_DURATION } from "./FloatingPhoneShowcase";
 import { SubscribePopup, SUBSCRIBE_POPUP_DURATION } from "./SubscribePopup";
 import { F1Broadcast, F1_BROADCAST_DURATION } from "./F1Broadcast";
+import { SiteShowcase3D, SITE_SHOWCASE_DURATION, siteShowcase3DSchema } from "./SiteShowcase3D";
 const FPS = 30;
 
 const DEMO_PROPS: VideoCompositionProps = {
@@ -443,6 +444,8 @@ export const RemotionRoot: React.FC = () => {
           headline: "FERRARI DOMINA A SESSÃO",
           subheadline: "Leclerc e Hamilton lideram os treinos livres em Monza",
           durationSec: 45,
+          showSubscribe: true,
+          subscribeCycleSec: 30,
           nextGP: {
             label: "PROSSIMO GP",
             name: "Gran Premio d'Austria",
@@ -453,6 +456,25 @@ export const RemotionRoot: React.FC = () => {
         }}
         calculateMetadata={({ props }) => ({
           durationInFrames: Math.ceil((props as any).durationSec * FPS),
+        })}
+      />
+      <Composition
+        id="SiteShowcase3D"
+        component={SiteShowcase3D}
+        schema={siteShowcase3DSchema}
+        durationInFrames={SITE_SHOWCASE_DURATION}
+        fps={FPS}
+        width={1920}
+        height={1080}
+        defaultProps={{
+          imageSrc: "site-print-1.png",
+          url: "https://mondo-ferrari-f1.vercel.app/it",
+          side: "left" as const,
+          accent: "#ff2d2d",
+          durationSec: 12,
+        }}
+        calculateMetadata={({ props }) => ({
+          durationInFrames: Math.ceil((props.durationSec || 12) * FPS),
         })}
       />
     </>

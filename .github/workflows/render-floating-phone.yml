@@ -35,6 +35,11 @@ on:
         required: false
         default: "false"
         type: string
+      subscribe:
+        description: "Barra de inscrição (mãozinha) a cada 30s? (true/false)"
+        required: false
+        default: "true"
+        type: string
       concurrency:
         description: "Núcleos usados no render (1-2). O runner gratuito do GitHub tem 2 núcleos."
         required: false
@@ -125,6 +130,7 @@ jobs:
           SUBHEADLINE: ${{ inputs.subheadline }}
           END_EXPAND: ${{ inputs.end_expand }}
           FULLSCREEN: ${{ inputs.fullscreen }}
+          SUBSCRIBE: ${{ inputs.subscribe }}
         run: |
           node .github/scripts/prep-f1-props.mjs \
             render-job.json \

@@ -1,6 +1,7 @@
 import { useCurrentFrame, useVideoConfig, Img, OffthreadVideo, Audio, interpolate, Sequence, Loop, staticFile } from "remotion";
 import { DriverStandings, Standing } from "./DriverStandings";
 import { TrackMap3D, GPInfo } from "./TrackMap3D";
+import { SubscribeBar } from "./SubscribePopup";
 
 export type F1Segment = { src: string; type: "photo" | "video"; durationSec: number };
 
@@ -24,6 +25,8 @@ export type F1BroadcastProps = {
   audioSrc?: string;          // narração (áudios já concatenados)
   nextGP?: GPInfo;            // próximo GP (pista 3D) — alterna com a classificação
   trackPath?: string;         // traçado SVG do circuito
+  showSubscribe?: boolean;    // barra de inscrição (mãozinha clicando) em ciclo
+  subscribeCycleSec?: number; // de quanto em quanto tempo a barra reaparece (default 30)
 };
 
 // Conteúdo fixo (mocado) — pilotos, classificação e assets de marca
@@ -191,6 +194,8 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   audioSrc,
   nextGP,
   trackPath,
+  showSubscribe = false,
+  subscribeCycleSec = 30,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -332,6 +337,16 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
           </div>
         </div>
       </div>
+
+      {/* ── Barra de inscrição (mãozinha) em ciclo — por cima de tudo ── */}
+      {showSubscribe ? (
+        <SubscribeBar
+          channelName="Mondo Ferrari F1"
+          channelHandle="@MondoFerrariF1"
+          avatarSrc={staticFile("logo-estranho.png")}
+          cycleSec={subscribeCycleSec}
+        />
+      ) : null}
     </div>
   );
 };

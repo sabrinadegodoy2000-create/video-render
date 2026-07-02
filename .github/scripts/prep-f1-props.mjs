@@ -215,12 +215,16 @@ while (current < totalDuration) {
 console.log(`[PREP] ${base.length} mídia(s) de fundo → ${bigSegments.length} segmento(s) cobrindo ${totalDuration}s`);
 
 const showEndExpand = ["1", "true", "yes", "on", "sim"].includes(String(process.env.END_EXPAND || "").toLowerCase());
+// barra de inscrição: padrão LIGADA (só desliga se vier explicitamente "false"/"no"/"0")
+const showSubscribe = !["0", "false", "no", "off", "nao", "não"].includes(String(process.env.SUBSCRIBE ?? "true").toLowerCase());
 
 const props = {
   bigSegments,
   durationSec: totalDuration,
   headline: process.env.HEADLINE || "",
   subheadline: process.env.SUBHEADLINE || "",
+  showSubscribe,
+  subscribeCycleSec: 30,
 };
 
 if (fullscreen) {

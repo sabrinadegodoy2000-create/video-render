@@ -24,7 +24,13 @@ if (!jobFile || !mediaDir || !outFile) {
 
 const job = JSON.parse(fs.readFileSync(jobFile, "utf-8"));
 const SECONDS_PER_ITEM = Number(job.secondsPerItem) > 0 ? Number(job.secondsPerItem) : 3;
-const fullscreen = ["1", "true", "yes", "on", "sim"].includes(String(process.env.FULLSCREEN || "").toLowerCase());
+
+// Modo: normal (PiP) | narracao (áudios) | bigvideo (vídeo único no quadro grande)
+// Retrocompat: FULLSCREEN=true equivale a MODE=narracao.
+const legacyFull = ["1", "true", "yes", "on", "sim"].includes(String(process.env.FULLSCREEN || "").toLowerCase());
+const MODE = (String(process.env.MODE || "").toLowerCase()) || (legacyFull ? "narracao" : "normal");
+const fullscreen = MODE === "narracao";      // layout classificação/pista + duração pelos áudios
+const bigVideoMode = MODE === "bigvideo";    // vídeo único no quadro grande (com áudio) + classificação/pista
 
 function resolveMedia(filename, label) {
   if (!filename) throw new Error(`Campo "${label}" vazio`);
@@ -165,54 +171,66 @@ async function fetchStandings(topN = 10) {
   }
 }
 
-// ── Fonte da duração ─────────────────────────────────────────────
-let totalDuration, pipPath = null, audioPath = null, pipFile = "";
-if (fullscreen) {
-  audioPath = resolveMedia("narration.m4a", "narração");
-  totalDuration = Math.ceil(mediaDuration(audioPath));
-  if (!totalDuration) throw new Error("Não consegui medir a duração da narração (narration.m4a).");
-  console.log(`[PREP] Modo NARRAÇÃO — duração ${totalDuration}s`);
-} else {
-  pipFile = process.env.MAIN_VIDEO || job.mainVideo || job.portrait;
-  pipPath = resolveMedia(pipFile, "mainVideo");
-  totalDuration = Math.ceil(mediaDuration(pipPath));
-  if (!totalDuration) throw new Error("Não consegui medir a duração do vídeo PiP (mainVideo).");
-  console.log(`[PREP] Modo NORMAL — PiP ${path.basename(pipPath)} — ${totalDuration}s`);
-}
-
-// ── Grade grande (fundo) — auto-detecta imagens/vídeos ───────────
-let wideInput = Array.isArray(job.wide) ? job.wide : null;
-if (!wideInput) {
-  const reserved = new Set(["floating-phone-output.mp4", "narration.m4a"]);
-  if (pipFile) reserved.add(path.basename(pipFile));
-  wideInput = fs.readdirSync(mediaDir).filter((f) => {
-    if (reserved.has(f)) return false;
-    const ext = path.extname(f).toLowerCase();
-    return VIDEO_EXTS.has(ext) || IMAGE_EXTS.has(ext);
-  }).sort();
-  if (wideInput.length === 0) throw new Error("Nenhuma mídia de fundo encontrada (suba imagens/vídeos).");
-  console.log(`[PREP] Fundo auto-detectado: ${wideInput.length} mídia(s)`);
-}
-
-const base = wideInput.map((entry, i) => {
-  const filename = typeof entry === "string" ? entry : entry.file;
-  const absPath = resolveMedia(filename, `wide[${i}]`);
-  const ext = path.extname(absPath).toLowerCase();
-  const isVideo = (typeof entry === "object" && entry.type === "video") || VIDEO_EXTS.has(ext);
-  return { absPath, type: isVideo ? "video" : "photo" };
-});
-
-// ── Loop pra preencher a duração toda ────────────────────────────
+// ── Fonte da duração + montagem do quadro grande ─────────────────
+let totalDuration, pipPath = null, audioPath = null, pipFile = "", bigVideoPath = null;
 const bigSegments = [];
-let current = 0, idx = 0;
-while (current < totalDuration) {
-  const seg = base[idx % base.length];
-  const remaining = totalDuration - current;
-  bigSegments.push({ src: toFileUrl(seg.absPath), type: seg.type, durationSec: Math.min(SECONDS_PER_ITEM, remaining) });
-  current += SECONDS_PER_ITEM;
-  idx += 1;
+
+if (bigVideoMode) {
+  // vídeo único no quadro grande (com áudio); duração = a dele
+  const bigFile = process.env.MAIN_VIDEO || job.mainVideo;
+  bigVideoPath = resolveMedia(bigFile, "vídeo grande");
+  totalDuration = Math.ceil(mediaDuration(bigVideoPath));
+  if (!totalDuration) throw new Error("Não consegui medir a duração do vídeo grande (mainVideo).");
+  bigSegments.push({ src: toFileUrl(bigVideoPath), type: "video", durationSec: totalDuration });
+  console.log(`[PREP] Modo VÍDEO GRANDE — ${path.basename(bigVideoPath)} — ${totalDuration}s`);
+} else {
+  // duração
+  if (fullscreen) {
+    audioPath = resolveMedia("narration.m4a", "narração");
+    totalDuration = Math.ceil(mediaDuration(audioPath));
+    if (!totalDuration) throw new Error("Não consegui medir a duração da narração (narration.m4a).");
+    console.log(`[PREP] Modo NARRAÇÃO — duração ${totalDuration}s`);
+  } else {
+    pipFile = process.env.MAIN_VIDEO || job.mainVideo || job.portrait;
+    pipPath = resolveMedia(pipFile, "mainVideo");
+    totalDuration = Math.ceil(mediaDuration(pipPath));
+    if (!totalDuration) throw new Error("Não consegui medir a duração do vídeo PiP (mainVideo).");
+    console.log(`[PREP] Modo NORMAL — PiP ${path.basename(pipPath)} — ${totalDuration}s`);
+  }
+
+  // grade grande (fundo) — auto-detecta imagens/vídeos
+  let wideInput = Array.isArray(job.wide) ? job.wide : null;
+  if (!wideInput) {
+    const reserved = new Set(["floating-phone-output.mp4", "narration.m4a"]);
+    if (pipFile) reserved.add(path.basename(pipFile));
+    wideInput = fs.readdirSync(mediaDir).filter((f) => {
+      if (reserved.has(f)) return false;
+      const ext = path.extname(f).toLowerCase();
+      return VIDEO_EXTS.has(ext) || IMAGE_EXTS.has(ext);
+    }).sort();
+    if (wideInput.length === 0) throw new Error("Nenhuma mídia de fundo encontrada (suba imagens/vídeos).");
+    console.log(`[PREP] Fundo auto-detectado: ${wideInput.length} mídia(s)`);
+  }
+
+  const base = wideInput.map((entry, i) => {
+    const filename = typeof entry === "string" ? entry : entry.file;
+    const absPath = resolveMedia(filename, `wide[${i}]`);
+    const ext = path.extname(absPath).toLowerCase();
+    const isVideo = (typeof entry === "object" && entry.type === "video") || VIDEO_EXTS.has(ext);
+    return { absPath, type: isVideo ? "video" : "photo" };
+  });
+
+  // loop pra preencher a duração toda
+  let current = 0, idx = 0;
+  while (current < totalDuration) {
+    const seg = base[idx % base.length];
+    const remaining = totalDuration - current;
+    bigSegments.push({ src: toFileUrl(seg.absPath), type: seg.type, durationSec: Math.min(SECONDS_PER_ITEM, remaining) });
+    current += SECONDS_PER_ITEM;
+    idx += 1;
+  }
+  console.log(`[PREP] ${base.length} mídia(s) de fundo → ${bigSegments.length} segmento(s) cobrindo ${totalDuration}s`);
 }
-console.log(`[PREP] ${base.length} mídia(s) de fundo → ${bigSegments.length} segmento(s) cobrindo ${totalDuration}s`);
 
 const showEndExpand = ["1", "true", "yes", "on", "sim"].includes(String(process.env.END_EXPAND || "").toLowerCase());
 // barra de inscrição: padrão LIGADA (só desliga se vier explicitamente "false"/"no"/"0")
@@ -227,9 +245,15 @@ const props = {
   subscribeCycleSec: 30,
 };
 
-if (fullscreen) {
+if (bigVideoMode) {
+  // vídeo único no quadro grande (com áudio) + layout classificação/pista
+  props.fullscreenMode = true;
+  props.bigAudio = true;
+  props.showEndExpand = showEndExpand;
+} else if (fullscreen) {
   props.fullscreenMode = true;
   props.audioSrc = toFileUrl(audioPath);
+  props.showEndExpand = false;
 } else {
   props.pipVideoSrc = toFileUrl(pipPath);
   props.showEndExpand = showEndExpand;

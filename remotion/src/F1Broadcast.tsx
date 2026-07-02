@@ -27,6 +27,7 @@ export type F1BroadcastProps = {
   trackPath?: string;         // traçado SVG do circuito
   showSubscribe?: boolean;    // barra de inscrição (mãozinha clicando) em ciclo
   subscribeCycleSec?: number; // de quanto em quanto tempo a barra reaparece (default 30)
+  bigAudio?: boolean;         // toca o áudio do vídeo do quadro grande (modo "vídeo grande")
 };
 
 // Conteúdo fixo (mocado) — pilotos, classificação e assets de marca
@@ -196,6 +197,7 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   trackPath,
   showSubscribe = false,
   subscribeCycleSec = 30,
+  bigAudio = false,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -282,7 +284,7 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
               const dur = Math.round(seg.durationSec * fps);
               return (
                 <Sequence key={i} from={start} durationInFrames={dur} layout="none">
-                  <BlurFillMedia src={seg.src} isVideo={seg.type === "video"} muted />
+                  <BlurFillMedia src={seg.src} isVideo={seg.type === "video"} muted={!bigAudio} />
                 </Sequence>
               );
             })}

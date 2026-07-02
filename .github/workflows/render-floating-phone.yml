@@ -31,9 +31,14 @@ on:
         default: "true"
         type: string
       fullscreen:
-        description: "Modo narração: só a grade grande tela cheia + áudios? (true/false)"
+        description: "(legado) Modo narração? Use 'mode' no lugar."
         required: false
         default: "false"
+        type: string
+      mode:
+        description: "Modo: normal | narracao | bigvideo"
+        required: false
+        default: "normal"
         type: string
       subscribe:
         description: "Barra de inscrição (mãozinha) a cada 30s? (true/false)"
@@ -109,8 +114,8 @@ jobs:
           done
           echo "Normalização concluída."
 
-      - name: Concatenar áudios da narração (modo tela cheia)
-        if: ${{ inputs.fullscreen == 'true' }}
+      - name: Concatenar áudios da narração
+        if: ${{ inputs.mode == 'narracao' || inputs.fullscreen == 'true' }}
         run: |
           cd render-media
           files=$(ls audio-* 2>/dev/null | sort)
@@ -130,6 +135,7 @@ jobs:
           SUBHEADLINE: ${{ inputs.subheadline }}
           END_EXPAND: ${{ inputs.end_expand }}
           FULLSCREEN: ${{ inputs.fullscreen }}
+          MODE: ${{ inputs.mode }}
           SUBSCRIBE: ${{ inputs.subscribe }}
         run: |
           node .github/scripts/prep-f1-props.mjs \

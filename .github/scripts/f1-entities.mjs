@@ -179,6 +179,8 @@ export function buildCueSheet(words, assets, opts = {}) {
 
   const segments = [];
   let lastSrc = null;
+  const recent = [];   // srcs usados recentemente (cooldown pra variar)
+  const RECENT = opts.recentCooldown || 5; // "descanso" ~5 janelas antes de reusar de boa
 
   for (let t = 0; t < total; t += windowSec) {
     const winEnd = Math.min(t + windowSec, total);
@@ -192,7 +194,7 @@ export function buildCueSheet(words, assets, opts = {}) {
     }
 
     // pontua: piloto (3) = pessoa (3) = cena (3) > circuito (2) > equipe (1); penaliza repetir
-    let best = null, bestScore = 0;
+    let best = null, bestScore = 0, bestAgo = -1;
     for (const a of A) {
       let s = 0;
       for (const d of spoken.drivers) if (a.D.has(d)) s += 3;
@@ -201,14 +203,22 @@ export function buildCueSheet(words, assets, opts = {}) {
       for (const c of spoken.circuits) if (a.C.has(c)) s += 2;
       for (const tm of spoken.teams) if (a.T.has(tm)) s += 1;
       if (s === 0) continue;
-      if (toUrl(a.src) === lastSrc) s -= 1.5; // evita repetir consecutivo
-      if (s > bestScore) { bestScore = s; best = a; }
+      // cooldown: penaliza reuso recente (mais recente = mais penalidade), mas nunca
+      // zera se casou — assim um clipe relevante ainda vence o genérico quando é a única opção,
+      // e um clipe NÃO-recente que casa é preferido (dá variedade sem trocar por algo irrelevante).
+      const back = recent.lastIndexOf(toUrl(a.src));
+      const ago = back === -1 ? 999 : recent.length - back;   // 1 = janela passada; 999 = nunca usado
+      if (back !== -1) s = Math.max(0.1, s - (RECENT + 1 - ago));
+      // desempate: mesma pontuação → prefere o "mais descansado" (ago maior)
+      if (s > bestScore || (s === bestScore && ago > bestAgo)) { bestScore = s; best = a; bestAgo = ago; }
     }
 
-    // fallback: nada casou → genérico (rotaciona), senão mantém o anterior/1º asset
+    // fallback: nada casou → genérico (rotaciona, evita o anterior), senão qualquer um ≠ anterior
     if (!best) {
       if (genericAssets.length) {
-        best = genericAssets[Math.floor(t / windowSec) % genericAssets.length];
+        const pool = genericAssets.filter((a) => toUrl(a.src) !== lastSrc);
+        const g = pool.length ? pool : genericAssets;
+        best = g[Math.floor(t / windowSec) % g.length];
       } else {
         best = A.find((a) => toUrl(a.src) !== lastSrc) || A[0];
       }
@@ -222,6 +232,8 @@ export function buildCueSheet(words, assets, opts = {}) {
     if (prev && prev.src === seg.src) prev.durationSec = +(prev.durationSec + seg.durationSec).toFixed(2);
     else segments.push(seg);
     lastSrc = src;
+    recent.push(src);
+    if (recent.length > RECENT) recent.shift();
   }
   return segments;
 }

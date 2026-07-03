@@ -180,7 +180,10 @@ export function buildCueSheet(words, assets, opts = {}) {
   const segments = [];
   let lastSrc = null;
   const recent = [];   // srcs usados recentemente (cooldown pra variar)
+  const usedEver = new Set(); // srcs já usados alguma vez (pra preferir nunca-usados nos vãos)
   const RECENT = opts.recentCooldown || 5; // "descanso" ~5 janelas antes de reusar de boa
+  const FRESH = opts.freshBonus || 0.15;   // bônus de "frescor" p/ mídia descansada (dá variedade)
+  let fbIdx = 0;       // rodízio de fallback (biblioteca minúscula)
 
   for (let t = 0; t < total; t += windowSec) {
     const winEnd = Math.min(t + windowSec, total);
@@ -194,7 +197,7 @@ export function buildCueSheet(words, assets, opts = {}) {
     }
 
     // pontua: piloto (3) = pessoa (3) = cena (3) > circuito (2) > equipe (1); penaliza repetir
-    let best = null, bestScore = 0, bestAgo = -1;
+    let best = null, bestScore = 0, bestAgo = -1, bestNever = false;
     for (const a of A) {
       let s = 0;
       for (const d of spoken.drivers) if (a.D.has(d)) s += 3;
@@ -202,26 +205,33 @@ export function buildCueSheet(words, assets, opts = {}) {
       for (const sc of spoken.scenes) if (a.S.has(sc)) s += 3;
       for (const c of spoken.circuits) if (a.C.has(c)) s += 2;
       for (const tm of spoken.teams) if (a.T.has(tm)) s += 1;
-      if (s === 0) continue;
-      // cooldown: penaliza reuso recente (mais recente = mais penalidade), mas nunca
-      // zera se casou — assim um clipe relevante ainda vence o genérico quando é a única opção,
-      // e um clipe NÃO-recente que casa é preferido (dá variedade sem trocar por algo irrelevante).
       const back = recent.lastIndexOf(toUrl(a.src));
       const ago = back === -1 ? 999 : recent.length - back;   // 1 = janela passada; 999 = nunca usado
-      if (back !== -1) s = Math.max(0.1, s - (RECENT + 1 - ago));
-      // desempate: mesma pontuação → prefere o "mais descansado" (ago maior)
-      if (s > bestScore || (s === bestScore && ago > bestAgo)) { bestScore = s; best = a; bestAgo = ago; }
+      if (back === -1) {
+        // FRESCOR: mídia descansada ganha um empurrãozinho → dá variedade e preenche vãos
+        // com clipes NOVOS (nunca fica alternando 2 imagens numa biblioteca grande).
+        s += FRESH;
+      } else if (s > 0) {
+        // casou mas foi usado há pouco: penaliza (fica abaixo do frescor → prefere variar,
+        // mas volta a aparecer quando "descansa"; se for a única opção, ainda entra).
+        s = Math.max(0.1, s - (RECENT + 1 - ago));
+      } else {
+        continue; // recém-usado e não casa nada: ignora
+      }
+      if (s <= 0) continue;
+      // desempate: mesma pontuação → prefere NUNCA-usada; depois a "mais descansada" (ago maior).
+      const never = !usedEver.has(toUrl(a.src));
+      const better = s > bestScore
+        || (s === bestScore && never && !bestNever)
+        || (s === bestScore && never === bestNever && ago > bestAgo);
+      if (better) { bestScore = s; best = a; bestAgo = ago; bestNever = never; }
     }
 
-    // fallback: nada casou → genérico (rotaciona, evita o anterior), senão qualquer um ≠ anterior
+    // fallback (biblioteca minúscula, tudo já recente): rodízio pela lista, evitando o anterior
     if (!best) {
-      if (genericAssets.length) {
-        const pool = genericAssets.filter((a) => toUrl(a.src) !== lastSrc);
-        const g = pool.length ? pool : genericAssets;
-        best = g[Math.floor(t / windowSec) % g.length];
-      } else {
-        best = A.find((a) => toUrl(a.src) !== lastSrc) || A[0];
-      }
+      const pool = genericAssets.length ? genericAssets : A;
+      best = pool[fbIdx % pool.length]; fbIdx += 1;
+      if (toUrl(best.src) === lastSrc && pool.length > 1) { best = pool[fbIdx % pool.length]; fbIdx += 1; }
     }
 
     const src = toUrl(best.src);
@@ -232,6 +242,7 @@ export function buildCueSheet(words, assets, opts = {}) {
     if (prev && prev.src === seg.src) prev.durationSec = +(prev.durationSec + seg.durationSec).toFixed(2);
     else segments.push(seg);
     lastSrc = src;
+    usedEver.add(src);
     recent.push(src);
     if (recent.length > RECENT) recent.shift();
   }

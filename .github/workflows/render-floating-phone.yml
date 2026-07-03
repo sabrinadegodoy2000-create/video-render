@@ -128,6 +128,21 @@ jobs:
           ffmpeg -y $inputs -filter_complex "${filters}concat=n=$i:v=0:a=1[out]" -map "[out]" -c:a aac -b:a 192k narration.m4a 2>/dev/null
           echo "Narração: $i áudio(s) concatenados → narration.m4a"
 
+      - name: Transcrever a fala (Whisper) — para o cue sheet semântico
+        if: ${{ inputs.mode != 'bigvideo' }}
+        continue-on-error: true   # se falhar, o prep cai no loop simples (nunca quebra o render)
+        run: |
+          # fonte da fala: narração concatenada, senão o vídeo principal (PiP)
+          audio=""
+          if [ -f render-media/narration.m4a ]; then audio="render-media/narration.m4a";
+          elif [ -n "${{ inputs.main_video }}" ] && [ -f "render-media/${{ inputs.main_video }}" ]; then audio="render-media/${{ inputs.main_video }}"; fi
+          if [ -z "$audio" ]; then echo "Sem áudio pra transcrever — pulando."; exit 0; fi
+          if [ ! -f render-media/media-tags.json ]; then echo "Sem media-tags.json (mídias não tagueadas) — transcrição desnecessária, pulando."; exit 0; fi
+          pip install -q faster-whisper
+          WHISPER_MODEL=${WHISPER_MODEL:-small} python .github/scripts/transcribe.py "$audio" render-media/transcript.json
+        env:
+          WHISPER_MODEL: small
+
       - name: Preparar props (F1Broadcast)
         env:
           MAIN_VIDEO: ${{ inputs.main_video }}

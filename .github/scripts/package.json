@@ -1,0 +1,9 @@
+{
+  "name": "f1-render-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Scripts de preparação do render F1Broadcast (auto-tag por visão, cue sheet).",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0"
+  }
+}

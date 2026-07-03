@@ -15,6 +15,7 @@
 import fs from "fs";
 import path from "path";
 import { execFileSync } from "child_process";
+import { buildCueSheet } from "./f1-entities.mjs";
 
 const [, , jobFile, mediaDir, outFile] = process.argv;
 if (!jobFile || !mediaDir || !outFile) {
@@ -220,16 +221,43 @@ if (bigVideoMode) {
     return { absPath, type: isVideo ? "video" : "photo" };
   });
 
-  // loop pra preencher a duração toda
-  let current = 0, idx = 0;
-  while (current < totalDuration) {
-    const seg = base[idx % base.length];
-    const remaining = totalDuration - current;
-    bigSegments.push({ src: toFileUrl(seg.absPath), type: seg.type, durationSec: Math.min(SECONDS_PER_ITEM, remaining) });
-    current += SECONDS_PER_ITEM;
-    idx += 1;
+  // ── Cue sheet SEMÂNTICO (se houver transcrição + tags das mídias) ──
+  // transcript.json (Whisper, no workflow) + media-tags.json (auto-tag local).
+  // Casa cada janela da fala com o melhor take; senão, cai no loop simples.
+  let usedSemantic = false;
+  const transcriptPath = path.join(mediaDir, "transcript.json");
+  const tagsPath = path.join(mediaDir, "media-tags.json");
+  if (fs.existsSync(transcriptPath) && fs.existsSync(tagsPath)) {
+    try {
+      const tr = JSON.parse(fs.readFileSync(transcriptPath, "utf-8"));
+      const words = Array.isArray(tr) ? tr : (tr.words || []);
+      const tagsMap = JSON.parse(fs.readFileSync(tagsPath, "utf-8"));
+      const assets = base.map((s) => ({ src: s.absPath, type: s.type, tags: tagsMap[path.basename(s.absPath)] || {} }));
+      if (words.length && assets.length) {
+        const cue = buildCueSheet(words, assets, { totalDuration, windowSec: SECONDS_PER_ITEM, toUrl: toFileUrl });
+        if (cue.length) {
+          cue.forEach((seg) => bigSegments.push(seg));
+          usedSemantic = true;
+          console.log(`[PREP] Cue sheet SEMÂNTICO: ${cue.length} segmento(s) casados com a narração (${words.length} palavras, ${assets.length} mídia(s)).`);
+        }
+      }
+    } catch (e) {
+      console.warn("[PREP] Cue sheet semântico falhou, usando loop:", e.message);
+    }
   }
-  console.log(`[PREP] ${base.length} mídia(s) de fundo → ${bigSegments.length} segmento(s) cobrindo ${totalDuration}s`);
+
+  if (!usedSemantic) {
+    // loop pra preencher a duração toda (fallback / sem transcrição)
+    let current = 0, idx = 0;
+    while (current < totalDuration) {
+      const seg = base[idx % base.length];
+      const remaining = totalDuration - current;
+      bigSegments.push({ src: toFileUrl(seg.absPath), type: seg.type, durationSec: Math.min(SECONDS_PER_ITEM, remaining) });
+      current += SECONDS_PER_ITEM;
+      idx += 1;
+    }
+    console.log(`[PREP] ${base.length} mídia(s) de fundo → ${bigSegments.length} segmento(s) cobrindo ${totalDuration}s (loop)`);
+  }
 }
 
 const showEndExpand = ["1", "true", "yes", "on", "sim"].includes(String(process.env.END_EXPAND || "").toLowerCase());

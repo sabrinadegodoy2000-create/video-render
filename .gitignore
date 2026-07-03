@@ -8,6 +8,10 @@ frontend/
 node_modules/
 **/node_modules/
 
+# Auto-tag por visão — dados de runtime (cache/saída), não versionar
+**/media-tags-cache.json
+**/media-assets.json
+
 # Python
 __pycache__/
 *.pyc

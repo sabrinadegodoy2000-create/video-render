@@ -54,6 +54,7 @@ import { SOURCES_CARD_DURATION } from "./components/SourcesCard";
 import { FloatingPhoneShowcase, FLOATING_PHONE_DURATION } from "./FloatingPhoneShowcase";
 import { SubscribePopup, SUBSCRIBE_POPUP_DURATION } from "./SubscribePopup";
 import { F1Broadcast, F1_BROADCAST_DURATION } from "./F1Broadcast";
+import { PapoDeHojeBroadcast, PAPO_DE_HOJE_DURATION } from "./PapoDeHojeBroadcast";
 import { SiteShowcase3D, SITE_SHOWCASE_DURATION, siteShowcase3DSchema } from "./SiteShowcase3D";
 const FPS = 30;
 
@@ -453,6 +454,29 @@ export const RemotionRoot: React.FC = () => {
             flagSrc: "https://flagcdn.com/w320/at.png",
           },
           trackPath: "M63.99,64.25 L58.20,65.30 L43.87,67.95 L42.88,68.00 L42.22,67.59 L41.11,66.13 L37.60,62.91 L33.79,59.23 L30.79,55.98 L28.06,52.78 L23.60,46.16 L22.36,44.40 L20.47,42.32 L17.57,39.91 L12.74,36.61 L8.27,33.58 L8.00,33.17 L8.03,32.74 L8.54,32.53 L9.71,32.39 L13.37,32.10 L17.03,32.00 L20.81,32.03 L24.41,32.27 L28.58,32.72 L41.32,34.39 L47.13,34.92 L59.70,35.28 L60.72,35.51 L61.35,35.99 L61.59,36.52 L61.53,37.07 L61.20,37.59 L59.94,38.81 L58.95,39.62 L57.12,40.72 L55.11,41.46 L52.68,42.01 L50.04,42.30 L47.29,42.18 L36.58,41.01 L35.14,41.13 L33.97,41.41 L32.95,41.89 L32.05,42.54 L31.48,43.30 L31.18,44.14 L31.12,44.90 L31.30,45.74 L31.63,46.36 L36.82,52.52 L37.69,53.17 L39.07,53.76 L40.66,54.00 L42.19,53.91 L43.81,53.45 L44.80,52.90 L45.82,52.04 L46.78,51.21 L47.80,50.49 L49.02,49.92 L50.46,49.34 L52.48,48.84 L54.57,48.53 L71.19,48.29 L83.96,48.08 L85.31,48.10 L86.63,48.41 L87.71,48.96 L88.58,49.70 L89.24,50.68 L91.85,56.65 L92.00,57.20 L91.85,57.61 L91.55,57.92 L90.53,58.47 L89.18,59.01 L87.44,59.61 L85.46,60.18 L83.12,60.71 L63.99,64.25 Z",
+        }}
+        calculateMetadata={({ props }) => ({
+          durationInFrames: Math.ceil((props as any).durationSec * FPS),
+        })}
+      />
+      <Composition
+        id="PapoDeHojeBroadcast"
+        component={PapoDeHojeBroadcast as any}
+        durationInFrames={PAPO_DE_HOJE_DURATION}
+        fps={FPS}
+        width={1920}
+        height={1080}
+        defaultProps={{
+          bigSegments: Array.from({ length: 6 }, (_, i) => ({
+            src: staticFile(`samples/img${(i % 6) + 1}.jpg`),
+            type: "photo" as const,
+            durationSec: 5,
+          })),
+          headline: "TÍTULO DA MATÉRIA AQUI",
+          subheadline: "Subtítulo explicando o assunto do dia",
+          durationSec: 30,
+          showSubscribe: true,
+          subscribeCycleSec: 30,
         }}
         calculateMetadata={({ props }) => ({
           durationInFrames: Math.ceil((props as any).durationSec * FPS),

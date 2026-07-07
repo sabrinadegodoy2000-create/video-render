@@ -124,6 +124,8 @@ export const PapoDeHojeBroadcast: React.FC<PapoDeHojeBroadcastProps> = ({
           channelHandle="@papodehojebr"
           avatarSrc={staticFile("papo-de-hoje-logo.png")}
           cycleSec={subscribeCycleSec}
+          subscribeText="Inscrever-se"
+          subscribedText="Inscrito"
         />
       ) : null}
     </div>

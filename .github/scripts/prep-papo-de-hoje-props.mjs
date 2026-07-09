@@ -82,21 +82,47 @@ if (bigVideoMode) {
   if (wideInput.length === 0) throw new Error("Nenhuma mídia de fundo encontrada (suba imagens/vídeos).");
   console.log(`[PREP] Fundo auto-detectado: ${wideInput.length} mídia(s)`);
 
-  const base = wideInput.map((filename) => {
+  // Cada mídia vira uma "fila de trechos de SECONDS_PER_ITEM":
+  //  - vídeo longo → vários trechos (0s, 3s, 6s...) tocados a partir de cada ponto (startSec)
+  //  - foto        → um único trecho
+  // Distribui em rodízio, gastando trechos DIFERENTES (sem repetir). Só repete quando
+  // todos os trechos acabam e o áudio ainda não terminou (mídia pouca p/ narração longa).
+  const pools = wideInput.map((filename) => {
     const absPath = resolveMedia(filename, filename);
     const ext = path.extname(absPath).toLowerCase();
-    return { absPath, type: VIDEO_EXTS.has(ext) ? "video" : "photo" };
+    const isVideo = VIDEO_EXTS.has(ext);
+    let slices = [0];
+    if (isVideo) {
+      const dur = mediaDuration(absPath);
+      const n = Math.max(1, Math.floor(dur / SECONDS_PER_ITEM));
+      slices = Array.from({ length: n }, (_, i) => +(i * SECONDS_PER_ITEM).toFixed(2));
+    }
+    return { absPath, type: isVideo ? "video" : "photo", isVideo, slices, cursor: 0 };
   });
+  const totalTrechos = pools.reduce((a, p) => a + p.slices.length, 0);
 
-  let current = 0, idx = 0;
+  let current = 0, repeticoes = 0;
   while (current < totalDuration) {
-    const seg = base[idx % base.length];
-    const remaining = totalDuration - current;
-    bigSegments.push({ src: toFileUrl(seg.absPath), type: seg.type, durationSec: Math.min(SECONDS_PER_ITEM, remaining) });
-    current += SECONDS_PER_ITEM;
-    idx += 1;
+    let usouAlgum = false;
+    for (const p of pools) {
+      if (current >= totalDuration) break;
+      if (p.cursor >= p.slices.length) continue;   // essa mídia já gastou todos os trechos
+      const startSec = p.slices[p.cursor]; p.cursor += 1;
+      const remaining = totalDuration - current;
+      const seg = { src: toFileUrl(p.absPath), type: p.type, durationSec: +Math.min(SECONDS_PER_ITEM, remaining).toFixed(2) };
+      if (p.isVideo && startSec > 0) seg.startSec = startSec;
+      bigSegments.push(seg);
+      current += SECONDS_PER_ITEM;
+      usouAlgum = true;
+    }
+    if (!usouAlgum) {
+      // acabaram os trechos únicos e ainda falta áudio → recomeça (repete)
+      pools.forEach((p) => { p.cursor = 0; });
+      repeticoes += 1;
+      if (repeticoes > 5000) break;   // trava de segurança
+    }
   }
-  console.log(`[PREP] ${base.length} mídia(s) de fundo → ${bigSegments.length} segmento(s) cobrindo ${totalDuration}s (loop)`);
+  console.log(`[PREP] ${pools.length} mídia(s) → ${totalTrechos} trecho(s) de ${SECONDS_PER_ITEM}s → ${bigSegments.length} segmento(s) cobrindo ${totalDuration}s${repeticoes ? ` (repetiu ${repeticoes}x: mídia curta p/ o áudio)` : " (sem repetição)"}`);
 }
 
 const showSubscribe = !["0", "false", "no", "off", "nao", "não"].includes(String(process.env.SUBSCRIBE ?? "true").toLowerCase());

@@ -1,7 +1,7 @@
 import { useCurrentFrame, useVideoConfig, Img, OffthreadVideo, Audio, Sequence, staticFile } from "remotion";
 import { SubscribeBar } from "./SubscribePopup";
 
-export type PDHSegment = { src: string; type: "photo" | "video"; durationSec: number };
+export type PDHSegment = { src: string; type: "photo" | "video"; durationSec: number; startSec?: number };
 
 export type PapoDeHojeBroadcastProps = {
   bigSegments: PDHSegment[];   // slideshow do quadro grande (tela toda)
@@ -26,16 +26,18 @@ const FONT = "'Neue Haas Grotesk Display Pro', 'Helvetica Neue', Arial, sans-ser
 const LOGO_BG = "#21211D";
 const BAR_BG = "#262722";
 
-// Mídia com blur fill: fundo borrado (cover) + mídia inteira na frente (contain)
-const BlurFillMedia: React.FC<{ src: string; isVideo: boolean; muted?: boolean }> = ({ src, isVideo, muted = true }) => (
+// Mídia com blur fill: fundo borrado (cover) + mídia inteira na frente (contain).
+// trimBefore (frames) toca o vídeo a partir de um ponto — permite fatiar um vídeo
+// longo em trechos de 3s diferentes sem recortar o arquivo.
+const BlurFillMedia: React.FC<{ src: string; isVideo: boolean; muted?: boolean; trimBefore?: number }> = ({ src, isVideo, muted = true, trimBefore }) => (
   <>
     {isVideo ? (
-      <OffthreadVideo src={src} muted style={{ position: "absolute", inset: -30, width: "calc(100% + 60px)", height: "calc(100% + 60px)", objectFit: "cover", filter: "blur(22px) brightness(0.5)" }} />
+      <OffthreadVideo src={src} muted trimBefore={trimBefore} style={{ position: "absolute", inset: -30, width: "calc(100% + 60px)", height: "calc(100% + 60px)", objectFit: "cover", filter: "blur(22px) brightness(0.5)" }} />
     ) : (
       <Img src={src} style={{ position: "absolute", inset: -30, width: "calc(100% + 60px)", height: "calc(100% + 60px)", objectFit: "cover", filter: "blur(22px) brightness(0.5)" }} />
     )}
     {isVideo ? (
-      <OffthreadVideo src={src} muted={muted} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
+      <OffthreadVideo src={src} muted={muted} trimBefore={trimBefore} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
     ) : (
       <Img src={src} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
     )}
@@ -92,7 +94,7 @@ export const PapoDeHojeBroadcast: React.FC<PapoDeHojeBroadcastProps> = ({
           const dur = Math.round(seg.durationSec * fps);
           return (
             <Sequence key={i} from={start} durationInFrames={dur} layout="none">
-              <BlurFillMedia src={seg.src} isVideo={seg.type === "video"} muted={!bigAudio} />
+              <BlurFillMedia src={seg.src} isVideo={seg.type === "video"} muted={!bigAudio} trimBefore={seg.startSec ? Math.round(seg.startSec * fps) : undefined} />
             </Sequence>
           );
         })}

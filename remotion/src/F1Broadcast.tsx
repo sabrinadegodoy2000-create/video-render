@@ -290,7 +290,9 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
               const dur = Math.round(seg.durationSec * fps);
               return (
                 <Sequence key={i} from={start} durationInFrames={dur} layout="none">
-                  <BlurFillMedia src={seg.src} isVideo={seg.type === "video"} muted={!bigAudio} trimBefore={seg.startSec ? Math.round(seg.startSec * fps) : undefined} fx />
+                  {/* fx (espelho+blur) só nos vídeos de fundo (normal/narração); no modo
+                      vídeo grande (bigAudio) o vídeo é o destaque → deixa limpo */}
+                  <BlurFillMedia src={seg.src} isVideo={seg.type === "video"} muted={!bigAudio} trimBefore={seg.startSec ? Math.round(seg.startSec * fps) : undefined} fx={!bigAudio} />
                 </Sequence>
               );
             })}

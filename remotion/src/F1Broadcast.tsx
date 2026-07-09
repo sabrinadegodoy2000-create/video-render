@@ -3,7 +3,7 @@ import { DriverStandings, Standing } from "./DriverStandings";
 import { TrackMap3D, GPInfo } from "./TrackMap3D";
 import { SubscribeBar } from "./SubscribePopup";
 
-export type F1Segment = { src: string; type: "photo" | "video"; durationSec: number };
+export type F1Segment = { src: string; type: "photo" | "video"; durationSec: number; startSec?: number };
 
 export type Driver = { name: string; photoSrc?: string };
 
@@ -124,23 +124,29 @@ const DriverCard: React.FC<{ driver: Driver; flip?: boolean }> = ({ driver, flip
   </div>
 );
 
-// Mídia com blur fill: fundo borrado (cover) + mídia inteira na frente (contain)
-const BlurFillMedia: React.FC<{ src: string; isVideo: boolean; muted?: boolean; trimBefore?: number }> = ({ src, isVideo, muted = true, trimBefore }) => (
-  <>
-    {/* fundo borrado e escurecido */}
-    {isVideo ? (
-      <OffthreadVideo src={src} muted trimBefore={trimBefore} style={{ position: "absolute", inset: -30, width: "calc(100% + 60px)", height: "calc(100% + 60px)", objectFit: "cover", filter: "blur(22px) brightness(0.5)" }} />
-    ) : (
-      <Img src={src} style={{ position: "absolute", inset: -30, width: "calc(100% + 60px)", height: "calc(100% + 60px)", objectFit: "cover", filter: "blur(22px) brightness(0.5)" }} />
-    )}
-    {/* mídia inteira (sem cortar) */}
-    {isVideo ? (
-      <OffthreadVideo src={src} muted={muted} trimBefore={trimBefore} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
-    ) : (
-      <Img src={src} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
-    )}
-  </>
-);
+// Mídia com blur fill: fundo borrado (cover) + mídia inteira na frente (contain).
+// fx (só vídeo): espelha na horizontal + blur leve na frente — pra descaracterizar
+// material reaproveitado.
+const BlurFillMedia: React.FC<{ src: string; isVideo: boolean; muted?: boolean; trimBefore?: number; fx?: boolean }> = ({ src, isVideo, muted = true, trimBefore, fx }) => {
+  const flip = fx && isVideo ? "scaleX(-1)" : undefined;
+  const fgFilter = fx && isVideo ? "blur(3px)" : undefined;
+  return (
+    <>
+      {/* fundo borrado e escurecido */}
+      {isVideo ? (
+        <OffthreadVideo src={src} muted trimBefore={trimBefore} style={{ position: "absolute", inset: -30, width: "calc(100% + 60px)", height: "calc(100% + 60px)", objectFit: "cover", filter: "blur(22px) brightness(0.5)", transform: flip }} />
+      ) : (
+        <Img src={src} style={{ position: "absolute", inset: -30, width: "calc(100% + 60px)", height: "calc(100% + 60px)", objectFit: "cover", filter: "blur(22px) brightness(0.5)" }} />
+      )}
+      {/* mídia inteira (sem cortar) */}
+      {isVideo ? (
+        <OffthreadVideo src={src} muted={muted} trimBefore={trimBefore} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", transform: flip, filter: fgFilter }} />
+      ) : (
+        <Img src={src} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
+      )}
+    </>
+  );
+};
 
 // Overlay da pista 3D com fade in/out (frame relativo à Sequence)
 const TrackOverlay: React.FC<{ width: number; height: number; gp: GPInfo; trackPath: string; durFrames: number }> = ({ width, height, gp, trackPath, durFrames }) => {
@@ -284,7 +290,7 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
               const dur = Math.round(seg.durationSec * fps);
               return (
                 <Sequence key={i} from={start} durationInFrames={dur} layout="none">
-                  <BlurFillMedia src={seg.src} isVideo={seg.type === "video"} muted={!bigAudio} />
+                  <BlurFillMedia src={seg.src} isVideo={seg.type === "video"} muted={!bigAudio} trimBefore={seg.startSec ? Math.round(seg.startSec * fps) : undefined} fx />
                 </Sequence>
               );
             })}

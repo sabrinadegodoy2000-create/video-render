@@ -16,6 +16,7 @@ import fs from "fs";
 import path from "path";
 import { execFileSync } from "child_process";
 import { buildCueSheet } from "./f1-entities.mjs";
+import { montarPools, distribuirMidias } from "./media-distribute.mjs";
 
 const [, , jobFile, mediaDir, outFile] = process.argv;
 if (!jobFile || !mediaDir || !outFile) {
@@ -247,40 +248,15 @@ if (bigVideoMode) {
   }
 
   if (!usedSemantic) {
-    // Fatia vídeos longos em trechos de SECONDS_PER_ITEM (0s, 3s, 6s...) via startSec,
-    // e distribui em rodízio SEM repetir. Só repete quando os trechos acabam antes do áudio.
-    const pools = base.map((seg) => {
-      let slices = [0];
-      if (seg.type === "video") {
-        const dur = mediaDuration(seg.absPath);
-        const n = Math.max(1, Math.floor(dur / SECONDS_PER_ITEM));
-        slices = Array.from({ length: n }, (_, i) => +(i * SECONDS_PER_ITEM).toFixed(2));
-      }
-      return { absPath: seg.absPath, type: seg.type, isVideo: seg.type === "video", slices, cursor: 0 };
-    });
-    const totalTrechos = pools.reduce((a, p) => a + p.slices.length, 0);
-
-    let current = 0, repeticoes = 0;
-    while (current < totalDuration) {
-      let usouAlgum = false;
-      for (const p of pools) {
-        if (current >= totalDuration) break;
-        if (p.cursor >= p.slices.length) continue;
-        const startSec = p.slices[p.cursor]; p.cursor += 1;
-        const remaining = totalDuration - current;
-        const seg = { src: toFileUrl(p.absPath), type: p.type, durationSec: +Math.min(SECONDS_PER_ITEM, remaining).toFixed(2) };
-        if (p.isVideo && startSec > 0) seg.startSec = startSec;
-        bigSegments.push(seg);
-        current += SECONDS_PER_ITEM;
-        usouAlgum = true;
-      }
-      if (!usouAlgum) {
-        pools.forEach((p) => { p.cursor = 0; });
-        repeticoes += 1;
-        if (repeticoes > 5000) break;
-      }
-    }
-    console.log(`[PREP] ${pools.length} mídia(s) → ${totalTrechos} trecho(s) de ${SECONDS_PER_ITEM}s → ${bigSegments.length} segmento(s) cobrindo ${totalDuration}s${repeticoes ? ` (repetiu ${repeticoes}x)` : " (sem repetição)"}`);
+    // Vídeos longos → fatiados em trechos de 3s; fotos → pontuação espalhada; vídeo
+    // preenche o resto, sem repetir (só repete se a mídia acaba antes do áudio).
+    const pools = montarPools(
+      base.map((s) => ({ absPath: s.absPath, isVideo: s.type === "video" })),
+      SECONDS_PER_ITEM, mediaDuration,
+    );
+    const dist = distribuirMidias(pools, totalDuration, SECONDS_PER_ITEM, toFileUrl);
+    dist.bigSegments.forEach((s) => bigSegments.push(s));
+    console.log(`[PREP] ${pools.length} mídia(s) → ${bigSegments.length} segmento(s) cobrindo ${totalDuration}s${dist.repetiu ? " (repetiu: mídia curta p/ o áudio)" : " (sem repetição)"}`);
   }
 }
 

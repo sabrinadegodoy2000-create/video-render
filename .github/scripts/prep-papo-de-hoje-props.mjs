@@ -13,7 +13,7 @@
 import fs from "fs";
 import path from "path";
 import { execFileSync } from "child_process";
-import { montarPools, distribuirMidias, distribuirBlocos } from "./media-distribute.mjs";
+import { montarPools, distribuirMidias, distribuirBlocos, distribuirBlocosVideoUnico } from "./media-distribute.mjs";
 
 const [, , jobFile, mediaDir, outFile] = process.argv;
 if (!jobFile || !mediaDir || !outFile) {
@@ -111,31 +111,41 @@ function distribuirPorBlocoSeHouver(mediaDir, todasEntradas, totalDuration, outS
   try {
     const bj = JSON.parse(fs.readFileSync(blocksFile, "utf-8"));
     const blocksMedia = Array.isArray(bj.blocks) ? bj.blocks : [];
+    const sharedVideos = Array.isArray(bj.sharedVideos) ? bj.sharedVideos : [];
     const audios = fs.readdirSync(mediaDir)
       .filter((f) => /^audio-\d+\.(mp3|m4a|wav|aac)$/i.test(f))
       .sort();
-    if (!blocksMedia.length || !audios.length) return false;
+    if ((!blocksMedia.length && !sharedVideos.length) || !audios.length) return false;
 
     const durs = audios.map((af) => mediaDuration(path.resolve(mediaDir, af)));
     const somaDurs = durs.reduce((a, d) => a + d, 0) || 1;
     // fecha o arredondamento: joga a sobra (totalDuration - soma) no último bloco
     const sobra = totalDuration - somaDurs;
-
-    const blocos = audios.map((_, i) => {
-      const files = Array.isArray(blocksMedia[i]) ? blocksMedia[i] : [];
-      let entradas = files.map((f) => {
+    const durBloco = (i) => durs[i] + (i === audios.length - 1 ? sobra : 0);
+    const entradasDoBloco = (i) =>
+      (Array.isArray(blocksMedia[i]) ? blocksMedia[i] : []).map((f) => {
         const absPath = resolveMedia(f, `bloco ${i + 1}`);
         return { absPath, isVideo: VIDEO_EXTS.has(path.extname(absPath).toLowerCase()) };
       });
-      if (!entradas.length) entradas = todasEntradas; // bloco sem mídia → usa todas
-      let durationSec = durs[i];
-      if (i === audios.length - 1) durationSec += sobra;
-      return { durationSec, entradas };
-    });
 
-    const dist = distribuirBlocos(blocos, SECONDS_PER_ITEM, toFileUrl, mediaDuration);
+    let dist;
+    if (sharedVideos.length) {
+      // vídeo(s) compartilhado(s) preenchem todos os blocos; fotos são a pontuação de cada bloco
+      const videoEntradas = sharedVideos.map((f) => ({ absPath: resolveMedia(f, "vídeo compartilhado"), isVideo: true }));
+      const blocos = audios.map((_, i) => ({ durationSec: durBloco(i), fotos: entradasDoBloco(i) }));
+      dist = distribuirBlocosVideoUnico(blocos, videoEntradas, SECONDS_PER_ITEM, toFileUrl, mediaDuration);
+      console.log(`[PREP] Distribuição POR BLOCO (vídeo compartilhado): ${audios.length} bloco(s), ${sharedVideos.length} vídeo(s) → ${dist.bigSegments.length} segmento(s)${dist.repetiu ? " (vídeo/fotos repetiram)" : ""}`);
+    } else {
+      // cada bloco se vira com a própria mídia (vazio → usa todas)
+      const blocos = audios.map((_, i) => {
+        let entradas = entradasDoBloco(i);
+        if (!entradas.length) entradas = todasEntradas;
+        return { durationSec: durBloco(i), entradas };
+      });
+      dist = distribuirBlocos(blocos, SECONDS_PER_ITEM, toFileUrl, mediaDuration);
+      console.log(`[PREP] Distribuição POR BLOCO: ${audios.length} bloco(s) → ${dist.bigSegments.length} segmento(s) cobrindo ${totalDuration}s${dist.repetiu ? " (algum bloco repetiu mídia)" : ""}`);
+    }
     dist.bigSegments.forEach((s) => outSegments.push(s));
-    console.log(`[PREP] Distribuição POR BLOCO: ${audios.length} bloco(s) → ${outSegments.length} segmento(s) cobrindo ${totalDuration}s${dist.repetiu ? " (algum bloco repetiu mídia)" : ""}`);
     return true;
   } catch (e) {
     console.warn("[PREP] blocks.json inválido — caindo na distribuição global:", e.message);

@@ -16,7 +16,7 @@ import fs from "fs";
 import path from "path";
 import { execFileSync } from "child_process";
 import { buildCueSheet } from "./f1-entities.mjs";
-import { montarPools, distribuirMidias } from "./media-distribute.mjs";
+import { montarPools, distribuirMidias, distribuirBlocos } from "./media-distribute.mjs";
 
 const [, , jobFile, mediaDir, outFile] = process.argv;
 if (!jobFile || !mediaDir || !outFile) {
@@ -61,6 +61,59 @@ function mediaDuration(absPath) {
 
 const VIDEO_EXTS = new Set([".mp4", ".mov", ".mkv", ".webm", ".avi"]);
 const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"]);
+
+function parseHeadlines(raw) {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((h) => ({ headline: String(h.headline || "").trim(), subheadline: String(h.subheadline || "").trim() }))
+      .filter((h) => h.headline || h.subheadline);
+  } catch {
+    return [];
+  }
+}
+
+// Lê blocks.json + mede cada audio-NNN e distribui a mídia por bloco.
+// `todasEntradas` é o fallback quando um bloco não tem mídia atribuída.
+// Devolve true se distribuiu por bloco; false pra cair na distribuição global.
+function distribuirPorBlocoSeHouver(mediaDir, todasEntradas, totalDuration, outSegments) {
+  const blocksFile = path.join(mediaDir, "blocks.json");
+  if (!fs.existsSync(blocksFile)) return false;
+  try {
+    const bj = JSON.parse(fs.readFileSync(blocksFile, "utf-8"));
+    const blocksMedia = Array.isArray(bj.blocks) ? bj.blocks : [];
+    const audios = fs.readdirSync(mediaDir)
+      .filter((f) => /^audio-\d+\.(mp3|m4a|wav|aac)$/i.test(f))
+      .sort();
+    if (!blocksMedia.length || !audios.length) return false;
+
+    const durs = audios.map((af) => mediaDuration(path.resolve(mediaDir, af)));
+    const somaDurs = durs.reduce((a, d) => a + d, 0) || 1;
+    const sobra = totalDuration - somaDurs; // fecha o arredondamento no último bloco
+
+    const blocos = audios.map((_, i) => {
+      const files = Array.isArray(blocksMedia[i]) ? blocksMedia[i] : [];
+      let entradas = files.map((f) => {
+        const absPath = resolveMedia(f, `bloco ${i + 1}`);
+        return { absPath, isVideo: VIDEO_EXTS.has(path.extname(absPath).toLowerCase()) };
+      });
+      if (!entradas.length) entradas = todasEntradas; // bloco sem mídia → usa todas
+      let durationSec = durs[i];
+      if (i === audios.length - 1) durationSec += sobra;
+      return { durationSec, entradas };
+    });
+
+    const dist = distribuirBlocos(blocos, SECONDS_PER_ITEM, toFileUrl, mediaDuration);
+    dist.bigSegments.forEach((s) => outSegments.push(s));
+    console.log(`[PREP] Distribuição POR BLOCO: ${audios.length} bloco(s) → ${outSegments.length} segmento(s) cobrindo ${totalDuration}s${dist.repetiu ? " (algum bloco repetiu mídia)" : ""}`);
+    return true;
+  } catch (e) {
+    console.warn("[PREP] blocks.json inválido — caindo na distribuição global:", e.message);
+    return false;
+  }
+}
 
 // ── Próximo GP (Jolpica) + traçado real (f1-circuits) ────────────
 const RACE_IT = {
@@ -248,15 +301,17 @@ if (bigVideoMode) {
   }
 
   if (!usedSemantic) {
-    // Vídeos longos → fatiados em trechos de 3s; fotos → pontuação espalhada; vídeo
-    // preenche o resto, sem repetir (só repete se a mídia acaba antes do áudio).
-    const pools = montarPools(
-      base.map((s) => ({ absPath: s.absPath, isVideo: s.type === "video" })),
-      SECONDS_PER_ITEM, mediaDuration,
-    );
-    const dist = distribuirMidias(pools, totalDuration, SECONDS_PER_ITEM, toFileUrl);
-    dist.bigSegments.forEach((s) => bigSegments.push(s));
-    console.log(`[PREP] ${pools.length} mídia(s) → ${bigSegments.length} segmento(s) cobrindo ${totalDuration}s${dist.repetiu ? " (repetiu: mídia curta p/ o áudio)" : " (sem repetição)"}`);
+    const entradas = base.map((s) => ({ absPath: s.absPath, isVideo: s.type === "video" }));
+    // Distribuição POR BLOCO (só no modo narração, se veio blocks.json do painel).
+    const usedBlocks = fullscreen && distribuirPorBlocoSeHouver(mediaDir, entradas, totalDuration, bigSegments);
+    if (!usedBlocks) {
+      // Vídeos longos → fatiados em trechos de 3s; fotos → pontuação espalhada; vídeo
+      // preenche o resto, sem repetir (só repete se a mídia acaba antes do áudio).
+      const pools = montarPools(entradas, SECONDS_PER_ITEM, mediaDuration);
+      const dist = distribuirMidias(pools, totalDuration, SECONDS_PER_ITEM, toFileUrl);
+      dist.bigSegments.forEach((s) => bigSegments.push(s));
+      console.log(`[PREP] ${pools.length} mídia(s) → ${bigSegments.length} segmento(s) cobrindo ${totalDuration}s${dist.repetiu ? " (repetiu: mídia curta p/ o áudio)" : " (sem repetição)"}`);
+    }
   }
 }
 
@@ -264,14 +319,19 @@ const showEndExpand = ["1", "true", "yes", "on", "sim"].includes(String(process.
 // barra de inscrição: padrão LIGADA (só desliga se vier explicitamente "false"/"no"/"0")
 const showSubscribe = !["0", "false", "no", "off", "nao", "não"].includes(String(process.env.SUBSCRIBE ?? "true").toLowerCase());
 
+// Manchetes: HEADLINES_JSON (lista [{headline,subheadline}]) → rotação a cada 60s.
+// Se não vier, cai no par único HEADLINE/SUBHEADLINE (manchete fixa).
+const headlines = parseHeadlines(process.env.HEADLINES_JSON);
+
 const props = {
   bigSegments,
   durationSec: totalDuration,
-  headline: process.env.HEADLINE || "",
-  subheadline: process.env.SUBHEADLINE || "",
+  headline: headlines.length ? headlines[0].headline : (process.env.HEADLINE || ""),
+  subheadline: headlines.length ? (headlines[0].subheadline || "") : (process.env.SUBHEADLINE || ""),
   showSubscribe,
   subscribeCycleSec: 30,
 };
+if (headlines.length > 1) props.headlines = headlines;
 
 if (bigVideoMode) {
   // vídeo único no quadro grande (com áudio) + layout classificação/pista

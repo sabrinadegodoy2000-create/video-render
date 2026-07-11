@@ -1,5 +1,6 @@
 import { useCurrentFrame, useVideoConfig, Img, OffthreadVideo, Audio, Sequence, staticFile } from "remotion";
 import { SubscribeBar } from "./SubscribePopup";
+import { pickHeadline, HeadlineItem } from "./rotatingHeadline";
 
 export type PDHSegment = { src: string; type: "photo" | "video"; durationSec: number; startSec?: number };
 
@@ -7,8 +8,10 @@ export type PapoDeHojeBroadcastProps = {
   bigSegments: PDHSegment[];   // slideshow do quadro grande (tela toda)
   programLogoSrc?: string;    // logo do programa (rodapé, esquerda)
   backgroundSrc?: string;     // imagem de fundo (atrás do quadro grande, nas bordas)
-  headline?: string;          // manchete
+  headline?: string;          // manchete (uma só, fixa)
   subheadline?: string;       // subtítulo
+  headlines?: HeadlineItem[]; // várias manchetes → intercala a cada headlineRotateSec
+  headlineRotateSec?: number; // intervalo da troca de manchete (default 60s)
   durationSec: number;
   audioSrc?: string;          // narração (áudio concatenado), opcional
   bigAudio?: boolean;         // toca o áudio do(s) vídeo(s) do quadro grande em vez da narração
@@ -50,13 +53,22 @@ export const PapoDeHojeBroadcast: React.FC<PapoDeHojeBroadcastProps> = ({
   backgroundSrc,
   headline = "",
   subheadline = "",
+  headlines,
+  headlineRotateSec = 60,
   durationSec,
   audioSrc,
   bigAudio = false,
   showSubscribe = false,
   subscribeCycleSec = 30,
 }) => {
+  const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+
+  // manchete ativa no frame (rotaciona se vier a lista `headlines`, senão fixa)
+  const hl = pickHeadline(
+    headlines && headlines.length ? headlines : [{ headline, subheadline }],
+    frame, fps, headlineRotateSec,
+  );
 
   // ── Layout (1920x1080): quadro grande ocupa tudo, manchete no rodapé ──
   const PAD = 22;
@@ -109,12 +121,12 @@ export const PapoDeHojeBroadcast: React.FC<PapoDeHojeBroadcastProps> = ({
             <Img src={programLogoSrc} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
           ) : null}
         </div>
-        <div style={{ flex: 1, padding: "0 30px", minWidth: 0 }}>
+        <div style={{ flex: 1, padding: "0 30px", minWidth: 0, opacity: hl.opacity }}>
           <div style={{ fontFamily: FONT, fontWeight: 900, fontSize: 46, color: "#fff", letterSpacing: 0.2, lineHeight: 1.0, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {headline}
+            {hl.headline}
           </div>
           <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 23, color: "#c9c9cf", marginTop: 3, letterSpacing: 0.3, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {subheadline}
+            {hl.subheadline}
           </div>
         </div>
       </div>

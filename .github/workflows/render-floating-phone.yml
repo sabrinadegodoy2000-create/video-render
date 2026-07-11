@@ -25,6 +25,11 @@ on:
         required: false
         default: ""
         type: string
+      headlines:
+        description: "Lista JSON de manchetes [{headline,subheadline}] — troca a cada 60s (vazio = manchete única)"
+        required: false
+        default: ""
+        type: string
       end_expand:
         description: "Animação final (grade grande toma a tela)? (true/false)"
         required: false
@@ -148,6 +153,7 @@ jobs:
           MAIN_VIDEO: ${{ inputs.main_video }}
           HEADLINE: ${{ inputs.headline }}
           SUBHEADLINE: ${{ inputs.subheadline }}
+          HEADLINES_JSON: ${{ inputs.headlines }}
           END_EXPAND: ${{ inputs.end_expand }}
           FULLSCREEN: ${{ inputs.fullscreen }}
           MODE: ${{ inputs.mode }}

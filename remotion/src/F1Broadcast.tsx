@@ -2,6 +2,7 @@ import { useCurrentFrame, useVideoConfig, Img, OffthreadVideo, Audio, interpolat
 import { DriverStandings, Standing } from "./DriverStandings";
 import { TrackMap3D, GPInfo } from "./TrackMap3D";
 import { SubscribeBar } from "./SubscribePopup";
+import { pickHeadline, HeadlineItem } from "./rotatingHeadline";
 
 export type F1Segment = { src: string; type: "photo" | "video"; durationSec: number; startSec?: number };
 
@@ -19,6 +20,8 @@ export type F1BroadcastProps = {
   driverRight: Driver;        // piloto direito (topo)
   headline?: string;          // manchete (italiano) — vazio = sem texto (adiciona no CapCut)
   subheadline?: string;       // subtítulo
+  headlines?: HeadlineItem[]; // várias manchetes → intercala a cada headlineRotateSec
+  headlineRotateSec?: number; // intervalo da troca de manchete (default 60s)
   durationSec: number;
   showEndExpand?: boolean;    // animação final: painel grande toma a tela toda
   fullscreenMode?: boolean;   // modo narração: sem PiP (pista fica no lugar dele, classificação em cima)
@@ -195,6 +198,8 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   driverRight = { name: "Hamilton", photoSrc: staticFile("hamilton-aqui.png") },
   headline = "",
   subheadline = "",
+  headlines,
+  headlineRotateSec = 60,
   durationSec,
   showEndExpand = true,
   fullscreenMode = false,
@@ -207,6 +212,12 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+
+  // manchete ativa no frame (rotaciona se vier a lista `headlines`, senão fixa)
+  const hl = pickHeadline(
+    headlines && headlines.length ? headlines : [{ headline, subheadline }],
+    frame, fps, headlineRotateSec,
+  );
 
   // resolve cor/logo das equipes a partir do constructorId (classificação automática)
   const resolvedStandings = resolveStandings(standings);
@@ -338,12 +349,12 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
           )}
         </div>
         {/* manchete */}
-        <div style={{ flex: 1, padding: "0 30px", minWidth: 0 }}>
+        <div style={{ flex: 1, padding: "0 30px", minWidth: 0, opacity: hl.opacity }}>
           <div style={{ fontFamily: HEAD_FONT, fontWeight: 900, fontSize: 46, color: "#fff", letterSpacing: 0.2, lineHeight: 1.0, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {headline}
+            {hl.headline}
           </div>
           <div style={{ fontFamily: SUB_FONT, fontWeight: 700, fontSize: 23, color: "#c9c9cf", marginTop: 3, letterSpacing: 0.3, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {subheadline}
+            {hl.subheadline}
           </div>
         </div>
       </div>

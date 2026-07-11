@@ -58,6 +58,29 @@ export function distribuirMidias(pools, totalDuration, spi, toUrl) {
   return { bigSegments, videoStream, photoItems, repetiu };
 }
 
+/**
+ * Distribui mídias respeitando os limites de cada bloco da narração.
+ * Cada bloco cobre a janela do seu áudio; a mídia do bloco só toca nessa janela.
+ *
+ * @param {Array} blocos  [{ durationSec, entradas:[{absPath,isVideo}] }]
+ * @param {number} spi  segundos por trecho
+ * @param {(p:string)=>string} toUrl
+ * @param {(p:string)=>number} mediaDuration
+ * @returns {{bigSegments:Array, repetiu:boolean}}
+ */
+export function distribuirBlocos(blocos, spi, toUrl, mediaDuration) {
+  const bigSegments = [];
+  let repetiu = false;
+  for (const b of blocos) {
+    if (!b || !(b.durationSec > 0) || !b.entradas || !b.entradas.length) continue;
+    const pools = montarPools(b.entradas, spi, mediaDuration);
+    const dist = distribuirMidias(pools, b.durationSec, spi, toUrl);
+    dist.bigSegments.forEach((s) => bigSegments.push(s));
+    if (dist.repetiu) repetiu = true;
+  }
+  return { bigSegments, repetiu };
+}
+
 /** Monta os "pools" (trechos por mídia). entradas: [{ absPath, isVideo }]. */
 export function montarPools(entradas, spi, mediaDuration) {
   return entradas.map(({ absPath, isVideo }) => {

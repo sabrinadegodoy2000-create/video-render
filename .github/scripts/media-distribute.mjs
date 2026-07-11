@@ -82,65 +82,33 @@ export function distribuirBlocos(blocos, spi, toUrl, mediaDuration) {
 }
 
 /**
- * Distribui por bloco usando UM (ou poucos) vídeo compartilhado como fundo contínuo
- * de todos os blocos + as fotos de cada bloco só na janela dele.
+ * Modo "vídeo de fundo contínuo": o vídeo compartilhado é a camada BASE (roda o tempo
+ * todo — gerado à parte com distribuirMidias só de vídeo). Esta função agenda as fotos
+ * de cada bloco como "punch-in" em TELA CHEIA por cima, por `fotoDur`s cada, com um
+ * respiro de vídeo entre elas. Fotos que não couberem na janela do bloco não entram.
  *
- * O vídeo avança ao longo dos blocos (cursor contínuo): o bloco 2 começa do trecho
- * onde o bloco 1 parou — assim não repete a mesma cena em cada bloco. Só volta ao
- * começo quando o vídeo inteiro se esgota.
- *
- * @param {Array} blocos  [{ durationSec, fotos:[{absPath,isVideo}] }]  fotos = pontuação do bloco
- * @param {Array} videoEntradas  [{ absPath, isVideo:true }]  vídeo(s) compartilhado(s)
- * @param {number} spi
+ * @param {Array} blocos [{ startSec, durationSec, fotos:[{absPath}] }]  janelas dos blocos
  * @param {(p:string)=>string} toUrl
- * @param {(p:string)=>number} mediaDuration
- * @returns {{bigSegments:Array, repetiu:boolean}}
+ * @param {{fotoDur?:number, gapMin?:number}} opts  fotoDur=duração da foto; gapMin=vídeo mínimo entre fotos
+ * @returns {Array} overlays [{ src, startSec, durationSec }]  (tempos absolutos na timeline)
  */
-export function distribuirBlocosVideoUnico(blocos, videoEntradas, spi, toUrl, mediaDuration) {
-  // stream contínuo dos vídeos compartilhados (trechos 0,3,6... em rodízio entre eles)
-  const vpools = montarPools(videoEntradas.map((e) => ({ absPath: e.absPath, isVideo: true })), spi, mediaDuration);
-  const videoStream = [];
-  const cur = vpools.map(() => 0);
-  let restam = vpools.length > 0;
-  while (restam) {
-    restam = false;
-    vpools.forEach((p, i) => {
-      if (cur[i] < p.slices.length) {
-        videoStream.push({ absPath: p.absPath, startSec: p.slices[cur[i]] });
-        cur[i] += 1; restam = true;
-      }
-    });
-  }
-
-  const bigSegments = [];
-  let vi = 0, repetiu = false; // vi = cursor GLOBAL do vídeo (contínuo entre blocos)
+export function agendarFotosOverlay(blocos, toUrl, { fotoDur = 3, gapMin = 2 } = {}) {
+  const overlays = [];
   for (const b of blocos) {
-    if (!b || !(b.durationSec > 0)) continue;
     const fotos = b.fotos || [];
-    const S = Math.ceil(b.durationSec / spi);
-    const stride = fotos.length ? S / fotos.length : Infinity;
-    let pi = 0, nextPhoto = stride / 2;
-    for (let t = 0; t < S; t++) {
-      const remaining = b.durationSec - t * spi;
-      const durationSec = +Math.min(spi, remaining).toFixed(2);
-      if (fotos.length && t >= nextPhoto) {
-        if (pi >= fotos.length) repetiu = true;
-        const f = fotos[pi % fotos.length]; pi += 1; nextPhoto += stride;
-        bigSegments.push({ src: toUrl(f.absPath), type: f.isVideo ? "video" : "photo", durationSec });
-      } else if (videoStream.length) {
-        if (vi >= videoStream.length) repetiu = true; // vídeo esgotou → volta ao começo
-        const v = videoStream[vi % videoStream.length]; vi += 1;
-        const seg = { src: toUrl(v.absPath), type: "video", durationSec };
-        if (v.startSec > 0) seg.startSec = v.startSec;
-        bigSegments.push(seg);
-      } else if (fotos.length) {
-        if (pi >= fotos.length) repetiu = true;
-        const f = fotos[pi % fotos.length]; pi += 1;
-        bigSegments.push({ src: toUrl(f.absPath), type: f.isVideo ? "video" : "photo", durationSec });
-      }
+    if (!fotos.length || !(b.durationSec > 0)) continue;
+    const cycle = fotoDur + gapMin;
+    const maxN = Math.max(1, Math.floor(b.durationSec / cycle)); // quantas cabem c/ respiro
+    const n = Math.min(fotos.length, maxN);
+    const stride = b.durationSec / n;
+    for (let k = 0; k < n; k++) {
+      // centraliza cada foto no seu "slot" do bloco, sem estourar a janela
+      let start = b.startSec + k * stride + (stride - fotoDur) / 2;
+      start = Math.max(b.startSec, Math.min(start, b.startSec + b.durationSec - fotoDur));
+      overlays.push({ src: toUrl(fotos[k].absPath), startSec: +start.toFixed(2), durationSec: fotoDur });
     }
   }
-  return { bigSegments, repetiu };
+  return overlays;
 }
 
 /** Monta os "pools" (trechos por mídia). entradas: [{ absPath, isVideo }]. */

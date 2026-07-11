@@ -3,6 +3,7 @@ import { DriverStandings, Standing } from "./DriverStandings";
 import { TrackMap3D, GPInfo } from "./TrackMap3D";
 import { SubscribeBar } from "./SubscribePopup";
 import { pickHeadline, HeadlineItem } from "./rotatingHeadline";
+import { PhotoPunchOverlays, PhotoOverlayItem } from "./PhotoPunchOverlay";
 
 export type F1Segment = { src: string; type: "photo" | "video"; durationSec: number; startSec?: number };
 
@@ -10,6 +11,7 @@ export type Driver = { name: string; photoSrc?: string };
 
 export type F1BroadcastProps = {
   bigSegments: F1Segment[];   // slideshow da grade grande (esquerda)
+  photoOverlays?: PhotoOverlayItem[]; // fotos punch-in por cima (modo vídeo de fundo contínuo)
   fixedImageSrc?: string;     // imagem fixa (grade pequena de cima)
   standings?: Standing[];     // classificação (Top 3) na grade pequena de cima
   pipVideoSrc?: string;       // você (grade pequena de baixo)
@@ -188,6 +190,7 @@ const SmallPanelContent: React.FC<{ width: number; height: number; standings?: S
 
 export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   bigSegments,
+  photoOverlays,
   fixedImageSrc,
   standings = DEFAULT_STANDINGS,
   pipVideoSrc,
@@ -307,6 +310,8 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
                 </Sequence>
               );
             })}
+            {/* fotos punch-in em tela cheia por cima do vídeo de fundo contínuo */}
+            <PhotoPunchOverlays overlays={photoOverlays} />
           </>
         ) : null}
       </PanelFrame>

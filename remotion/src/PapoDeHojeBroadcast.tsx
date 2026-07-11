@@ -1,11 +1,13 @@
 import { useCurrentFrame, useVideoConfig, Img, OffthreadVideo, Audio, Sequence, staticFile } from "remotion";
 import { SubscribeBar } from "./SubscribePopup";
 import { pickHeadline, HeadlineItem } from "./rotatingHeadline";
+import { PhotoPunchOverlays, PhotoOverlayItem } from "./PhotoPunchOverlay";
 
 export type PDHSegment = { src: string; type: "photo" | "video"; durationSec: number; startSec?: number };
 
 export type PapoDeHojeBroadcastProps = {
   bigSegments: PDHSegment[];   // slideshow do quadro grande (tela toda)
+  photoOverlays?: PhotoOverlayItem[]; // fotos punch-in por cima (modo vídeo de fundo contínuo)
   programLogoSrc?: string;    // logo do programa (rodapé, esquerda)
   backgroundSrc?: string;     // imagem de fundo (atrás do quadro grande, nas bordas)
   headline?: string;          // manchete (uma só, fixa)
@@ -49,6 +51,7 @@ const BlurFillMedia: React.FC<{ src: string; isVideo: boolean; muted?: boolean; 
 
 export const PapoDeHojeBroadcast: React.FC<PapoDeHojeBroadcastProps> = ({
   bigSegments,
+  photoOverlays,
   programLogoSrc = staticFile("papo-de-hoje-logo.png"),
   backgroundSrc,
   headline = "",
@@ -110,6 +113,8 @@ export const PapoDeHojeBroadcast: React.FC<PapoDeHojeBroadcastProps> = ({
             </Sequence>
           );
         })}
+        {/* fotos punch-in em tela cheia por cima do vídeo de fundo contínuo */}
+        <PhotoPunchOverlays overlays={photoOverlays} />
       </div>
 
       {audioSrc ? <Audio src={audioSrc} /> : null}

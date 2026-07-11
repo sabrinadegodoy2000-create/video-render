@@ -13,7 +13,7 @@
 import fs from "fs";
 import path from "path";
 import { execFileSync } from "child_process";
-import { montarPools, distribuirMidias, distribuirBlocos, distribuirBlocosVideoUnico } from "./media-distribute.mjs";
+import { montarPools, distribuirMidias, distribuirBlocos, agendarFotosOverlay } from "./media-distribute.mjs";
 
 const [, , jobFile, mediaDir, outFile] = process.argv;
 if (!jobFile || !mediaDir || !outFile) {
@@ -56,6 +56,7 @@ const VIDEO_EXTS = new Set([".mp4", ".mov", ".mkv", ".webm", ".avi"]);
 const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"]);
 
 let totalDuration, audioPath = null, bigVideoPath = null;
+let PHOTO_OVERLAYS = null; // fotos punch-in (modo vídeo de fundo contínuo)
 const bigSegments = [];
 
 if (bigVideoMode) {
@@ -128,13 +129,21 @@ function distribuirPorBlocoSeHouver(mediaDir, todasEntradas, totalDuration, outS
         return { absPath, isVideo: VIDEO_EXTS.has(path.extname(absPath).toLowerCase()) };
       });
 
-    let dist;
     if (sharedVideos.length) {
-      // vídeo(s) compartilhado(s) preenchem todos os blocos; fotos são a pontuação de cada bloco
+      // BASE: vídeo compartilhado contínuo cobrindo tudo (só vídeo, sem fotos)
       const videoEntradas = sharedVideos.map((f) => ({ absPath: resolveMedia(f, "vídeo compartilhado"), isVideo: true }));
-      const blocos = audios.map((_, i) => ({ durationSec: durBloco(i), fotos: entradasDoBloco(i) }));
-      dist = distribuirBlocosVideoUnico(blocos, videoEntradas, SECONDS_PER_ITEM, toFileUrl, mediaDuration);
-      console.log(`[PREP] Distribuição POR BLOCO (vídeo compartilhado): ${audios.length} bloco(s), ${sharedVideos.length} vídeo(s) → ${dist.bigSegments.length} segmento(s)${dist.repetiu ? " (vídeo/fotos repetiram)" : ""}`);
+      const videoPools = montarPools(videoEntradas, SECONDS_PER_ITEM, mediaDuration);
+      const base = distribuirMidias(videoPools, totalDuration, SECONDS_PER_ITEM, toFileUrl);
+      base.bigSegments.forEach((s) => outSegments.push(s));
+      // FOTOS: punch-in em tela cheia por cima, dentro da janela de cada bloco
+      let acc = 0;
+      const blocos = audios.map((_, i) => {
+        const startSec = acc; const durationSec = durBloco(i); acc += durationSec;
+        // overlays são imagens; vídeo solto num bloco é ignorado (o fundo já é vídeo)
+        return { startSec, durationSec, fotos: entradasDoBloco(i).filter((e) => !e.isVideo) };
+      });
+      PHOTO_OVERLAYS = agendarFotosOverlay(blocos, toFileUrl);
+      console.log(`[PREP] Vídeo de fundo CONTÍNUO + ${PHOTO_OVERLAYS.length} foto(s) punch-in (${audios.length} bloco(s), ${sharedVideos.length} vídeo(s))`);
     } else {
       // cada bloco se vira com a própria mídia (vazio → usa todas)
       const blocos = audios.map((_, i) => {
@@ -142,10 +151,10 @@ function distribuirPorBlocoSeHouver(mediaDir, todasEntradas, totalDuration, outS
         if (!entradas.length) entradas = todasEntradas;
         return { durationSec: durBloco(i), entradas };
       });
-      dist = distribuirBlocos(blocos, SECONDS_PER_ITEM, toFileUrl, mediaDuration);
+      const dist = distribuirBlocos(blocos, SECONDS_PER_ITEM, toFileUrl, mediaDuration);
+      dist.bigSegments.forEach((s) => outSegments.push(s));
       console.log(`[PREP] Distribuição POR BLOCO: ${audios.length} bloco(s) → ${dist.bigSegments.length} segmento(s) cobrindo ${totalDuration}s${dist.repetiu ? " (algum bloco repetiu mídia)" : ""}`);
     }
-    dist.bigSegments.forEach((s) => outSegments.push(s));
     return true;
   } catch (e) {
     console.warn("[PREP] blocks.json inválido — caindo na distribuição global:", e.message);
@@ -181,6 +190,7 @@ const props = {
   subscribeCycleSec: 30,
 };
 if (headlines.length > 1) props.headlines = headlines;
+if (PHOTO_OVERLAYS && PHOTO_OVERLAYS.length) props.photoOverlays = PHOTO_OVERLAYS;
 
 if (bigVideoMode) {
   props.bigAudio = true;

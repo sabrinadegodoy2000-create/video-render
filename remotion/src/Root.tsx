@@ -55,6 +55,7 @@ import { FloatingPhoneShowcase, FLOATING_PHONE_DURATION } from "./FloatingPhoneS
 import { SubscribePopup, SUBSCRIBE_POPUP_DURATION } from "./SubscribePopup";
 import { F1Broadcast, F1_BROADCAST_DURATION } from "./F1Broadcast";
 import { PapoDeHojeBroadcast, PAPO_DE_HOJE_DURATION } from "./PapoDeHojeBroadcast";
+import { FutbolOcultoBroadcast, FUTBOL_OCULTO_DURATION } from "./FutbolOcultoBroadcast";
 import { SiteShowcase3D, SITE_SHOWCASE_DURATION, siteShowcase3DSchema } from "./SiteShowcase3D";
 const FPS = 30;
 
@@ -474,6 +475,29 @@ export const RemotionRoot: React.FC = () => {
           })),
           headline: "TÍTULO DA MATÉRIA AQUI",
           subheadline: "Subtítulo explicando o assunto do dia",
+          durationSec: 30,
+          showSubscribe: true,
+          subscribeCycleSec: 30,
+        }}
+        calculateMetadata={({ props }) => ({
+          durationInFrames: Math.ceil((props as any).durationSec * FPS),
+        })}
+      />
+      <Composition
+        id="FutbolOcultoBroadcast"
+        component={FutbolOcultoBroadcast as any}
+        durationInFrames={FUTBOL_OCULTO_DURATION}
+        fps={FPS}
+        width={1920}
+        height={1080}
+        defaultProps={{
+          bigSegments: Array.from({ length: 6 }, (_, i) => ({
+            src: staticFile(`samples/img${(i % 6) + 1}.jpg`),
+            type: "photo" as const,
+            durationSec: 5,
+          })),
+          headline: "TÍTULO DE LA NOTICIA AQUÍ",
+          subheadline: "Subtítulo explicando el tema del día",
           durationSec: 30,
           showSubscribe: true,
           subscribeCycleSec: 30,

@@ -1,0 +1,166 @@
+name: Render FutbolOcultoBroadcast
+run-name: Render ${{ inputs.release_tag }}
+
+# Dispara manualmente pela aba "Actions" do GitHub.
+# Informe a TAG do Release com as mídias (áudios da narração OU o vídeo grande + fundo).
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag do Release com as mídias"
+        required: true
+        type: string
+      main_video:
+        description: "Nome do arquivo do vídeo grande (só usado no modo bigvideo)"
+        required: false
+        default: ""
+        type: string
+      headline:
+        description: "Manchete (sobreposta ao vídeo)"
+        required: false
+        default: ""
+        type: string
+      subheadline:
+        description: "Subtítulo"
+        required: false
+        default: ""
+        type: string
+      headlines:
+        description: "Lista JSON de manchetes [{headline,subheadline}] — troca a cada 60s (vazio = manchete única)"
+        required: false
+        default: ""
+        type: string
+      mode:
+        description: "Modo: narracao | bigvideo"
+        required: false
+        default: "narracao"
+        type: string
+      subscribe:
+        description: "Barra de inscrição (mãozinha) a cada 30s? (true/false)"
+        required: false
+        default: "true"
+        type: string
+      concurrency:
+        description: "Núcleos usados no render (1-2). O runner gratuito do GitHub tem 2 núcleos."
+        required: false
+        default: "2"
+        type: string
+
+permissions:
+  contents: write  # necessário pro GITHUB_TOKEN enviar o vídeo de volta ao Release
+
+jobs:
+  render:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 320  # até ~5h20 (limite do GitHub é 6h por job)
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Instalar Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar ffmpeg e dependências do Chrome (Remotion)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg \
+            libnss3 libdbus-1-3 libatk1.0-0 libgbm-dev libasound2 \
+            libxrandr2 libxkbcommon-dev libxfixes3 libxcomposite1 \
+            libxdamage1 libatk-bridge2.0-0 libpango-1.0-0 libcairo2 libcups2
+
+      - name: Instalar dependências do Remotion
+        working-directory: remotion
+        run: npm install
+
+      - name: Baixar mídias do Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p render-media
+          echo "Baixando assets do release '${{ inputs.release_tag }}'..."
+          gh release download "${{ inputs.release_tag }}" \
+            --dir render-media \
+            --pattern '*' \
+            --clobber
+          echo "Mídias baixadas:"
+          ls -lh render-media
+
+      - name: Normalizar só os vídeos incompatíveis (Remotion não decodifica HEVC/H.265)
+        run: |
+          shopt -s nullglob nocaseglob
+          for f in render-media/*.mp4 render-media/*.mov render-media/*.mkv render-media/*.webm render-media/*.avi render-media/*.m4v; do
+            codec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$f" 2>/dev/null)
+            pixfmt=$(ffprobe -v error -select_streams v:0 -show_entries stream=pix_fmt -of default=noprint_wrappers=1:nokey=1 "$f" 2>/dev/null)
+            if [ "$codec" = "h264" ] && [ "$pixfmt" = "yuv420p" ]; then
+              echo "✓ $f já é H.264 8-bit — pulando"
+              continue
+            fi
+            echo "→ $f (codec: ${codec:-?} / ${pixfmt:-?}) — convertendo para H.264"
+            tmp="${f%.*}.norm.mp4"
+            ffmpeg -y -i "$f" \
+              -vf "scale='min(1920,iw)':-2" \
+              -c:v libx264 -profile:v high -pix_fmt yuv420p -crf 20 -preset veryfast \
+              -c:a aac -movflags +faststart "$tmp" 2>/dev/null \
+              && mv "$tmp" "$f" && echo "   ok → H.264" \
+              || { echo "   FALHOU ao normalizar $f"; rm -f "$tmp"; }
+          done
+          echo "Normalização concluída."
+
+      - name: Concatenar áudios da narração
+        if: ${{ inputs.mode != 'bigvideo' }}
+        run: |
+          cd render-media
+          files=$(ls audio-* 2>/dev/null | sort)
+          if [ -z "$files" ]; then echo "Nenhum áudio (audio-*) encontrado!"; exit 1; fi
+          inputs=""; filters=""; i=0
+          for f in $files; do
+            echo "  + $f"
+            inputs="$inputs -i $f"; filters="$filters[$i:a]"; i=$((i+1))
+          done
+          ffmpeg -y $inputs -filter_complex "${filters}concat=n=$i:v=0:a=1[out]" -map "[out]" -c:a aac -b:a 192k narration.m4a 2>/dev/null
+          echo "Narração: $i áudio(s) concatenados → narration.m4a"
+
+      - name: Preparar props (FutbolOcultoBroadcast)
+        env:
+          MAIN_VIDEO: ${{ inputs.main_video }}
+          HEADLINE: ${{ inputs.headline }}
+          SUBHEADLINE: ${{ inputs.subheadline }}
+          HEADLINES_JSON: ${{ inputs.headlines }}
+          MODE: ${{ inputs.mode }}
+          SUBSCRIBE: ${{ inputs.subscribe }}
+        run: |
+          node .github/scripts/prep-futbol-oculto-props.mjs \
+            render-job.json \
+            render-media \
+            props.json
+          echo "----- props.json -----"
+          cat props.json
+
+      - name: Renderizar com Remotion (FutbolOcultoBroadcast)
+        working-directory: remotion
+        run: |
+          node render.mjs \
+            --props ../props.json \
+            --output ../futbol-oculto-output.mp4 \
+            --composition FutbolOcultoBroadcast \
+            --concurrency ${{ inputs.concurrency }}
+
+      - name: Enviar o vídeo final de volta ao Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ inputs.release_tag }}" \
+            futbol-oculto-output.mp4 \
+            --clobber
+          echo "✅ Vídeo enviado para o release '${{ inputs.release_tag }}'. Baixe em: Releases → ${{ inputs.release_tag }}"
+
+      - name: Guardar também como artifact (backup de download)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: futbol-oculto-output
+          path: futbol-oculto-output.mp4
+          retention-days: 7

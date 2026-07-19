@@ -2,8 +2,9 @@ import { useCurrentFrame, useVideoConfig, Img, OffthreadVideo, Audio, interpolat
 import { DriverStandings, Standing } from "./DriverStandings";
 import { TrackMap3D, GPInfo } from "./TrackMap3D";
 import { SubscribeBar } from "./SubscribePopup";
-import { pickHeadline, HeadlineItem } from "./rotatingHeadline";
+import { pickHeadline, hasHeadlineContent, HeadlineItem } from "./rotatingHeadline";
 import { PhotoPunchOverlays, PhotoOverlayItem } from "./PhotoPunchOverlay";
+import { resolveStandings } from "./f1TeamStyles";
 
 export type F1Segment = { src: string; type: "photo" | "video"; durationSec: number; startSec?: number };
 
@@ -48,36 +49,6 @@ const DEFAULT_STANDINGS: Standing[] = [
   { pos: 9, name: "Hadjar", points: 34, teamColor: "#1E41FF", teamLogoSrc: staticFile("redbull-f1-logo.png"), logoScale: 1.35 },
   { pos: 10, name: "Lawson", points: 28, teamColor: "#6692FF", teamLogoSrc: staticFile("racingbulls-logo.webp") },
 ];
-
-// ── Estilo por equipe (constructorId da API) — cor + logo + ajuste ──
-// Times sem logo no projeto caem no fallback (caixinha branca), mas mantêm a cor.
-const TEAM_STYLE: Record<string, { color: string; logo?: string; scale?: number }> = {
-  mercedes:     { color: "#00D2BE", logo: staticFile("logo-mercedes.svg") },
-  ferrari:      { color: "#DC0000", logo: staticFile("ferrari-f1-logo.png"), scale: 1.45 },
-  mclaren:      { color: "#FF8000", logo: staticFile("mclaren-f1-logo.png") },
-  red_bull:     { color: "#1E41FF", logo: staticFile("redbull-f1-logo.png"), scale: 1.35 },
-  alpine:       { color: "#0093CC", logo: staticFile("alpine-f1-logo.png") },
-  rb:           { color: "#6692FF", logo: staticFile("racingbulls-logo.webp") },
-  haas:         { color: "#9C9FA2" },
-  williams:     { color: "#005AFF" },
-  audi:         { color: "#00594F" },
-  aston_martin: { color: "#006F62" },
-  cadillac:     { color: "#9A7B4F" },
-};
-
-// Preenche cor/logo/escala a partir do constructorId, sem sobrescrever o que já veio.
-function resolveStandings(list: Standing[]): Standing[] {
-  return list.map((s) => {
-    const st = s.team ? TEAM_STYLE[s.team] : undefined;
-    if (!st) return s;
-    return {
-      ...s,
-      teamColor: s.teamColor || st.color,
-      teamLogoSrc: s.teamLogoSrc ?? st.logo,
-      logoScale: s.logoScale ?? st.scale,
-    };
-  });
-}
 
 export const F1_BROADCAST_DURATION = 30 * 30;
 
@@ -140,10 +111,10 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   const { fps } = useVideoConfig();
 
   // manchete ativa no frame (rotaciona se vier a lista `headlines`, senão fixa)
-  const hl = pickHeadline(
-    headlines && headlines.length ? headlines : [{ headline, subheadline }],
-    frame, fps, headlineRotateSec,
-  );
+  const headlineList = headlines && headlines.length ? headlines : [{ headline, subheadline }];
+  const hl = pickHeadline(headlineList, frame, fps, headlineRotateSec);
+  // sem manchete em NENHUM ponto do vídeo → não reserva a faixa horizontal, vídeo toma tudo
+  const hasHeadline = hasHeadlineContent(headlineList);
 
   // resolve cor/logo das equipes a partir do constructorId (classificação automática)
   const resolvedStandings = resolveStandings(standings);
@@ -151,7 +122,7 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   // ── Layout "L invertido" (1920x1080): vídeo full-bleed no buraco do L ──
   // faixa vertical (direita, altura toda) + faixa horizontal (rodapé, até a vertical começar)
   const SIDE_W = 470;   // faixa vertical: logo + classificação + próximo GP
-  const BOTTOM_H = 150; // faixa horizontal: manchete
+  const BOTTOM_H = hasHeadline ? 150 : 0; // faixa horizontal: manchete (some se não houver)
   const FADE = 130;     // esmaecimento do vídeo pro painel — continuidade, sem linha de corte
   const LOGO_H = 156;   // bloco do logo, topo da faixa vertical
   const GP_H = 300;     // bloco do próximo GP, base da faixa vertical
@@ -235,17 +206,19 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
         ) : null}
       </div>
 
-      {/* ── FAIXA HORIZONTAL (rodapé, até a faixa vertical começar): manchete ── */}
-      <div style={{ position: "absolute", left: 0, top: botYAnim, width: mediaW, height: BOTTOM_H, background: PANEL_BG_BOTTOM, display: "flex", alignItems: "center", overflow: "hidden", opacity: panelOpacity }}>
-        <div style={{ flex: 1, padding: "0 44px", minWidth: 0, opacity: hl.opacity }}>
-          <div style={{ fontFamily: HEAD_FONT, fontWeight: 900, fontSize: 48, color: "#fff", letterSpacing: 0.2, lineHeight: 1.0, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {hl.headline}
-          </div>
-          <div style={{ fontFamily: SUB_FONT, fontWeight: 700, fontSize: 24, color: "#c9c9cf", marginTop: 5, letterSpacing: 0.3, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {hl.subheadline}
+      {/* ── FAIXA HORIZONTAL (rodapé, até a faixa vertical começar): manchete (só existe se houver) ── */}
+      {hasHeadline ? (
+        <div style={{ position: "absolute", left: 0, top: botYAnim, width: mediaW, height: BOTTOM_H, background: PANEL_BG_BOTTOM, display: "flex", alignItems: "center", overflow: "hidden", opacity: panelOpacity }}>
+          <div style={{ flex: 1, padding: "0 44px", minWidth: 0, opacity: hl.opacity }}>
+            <div style={{ fontFamily: HEAD_FONT, fontWeight: 900, fontSize: 48, color: "#fff", letterSpacing: 0.2, lineHeight: 1.0, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {hl.headline}
+            </div>
+            <div style={{ fontFamily: SUB_FONT, fontWeight: 700, fontSize: 24, color: "#c9c9cf", marginTop: 5, letterSpacing: 0.3, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {hl.subheadline}
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
 
       {/* ── Barra de inscrição (mãozinha) em ciclo — por cima de tudo ── */}
       {showSubscribe ? (

@@ -15,6 +15,12 @@ export type DriverStandingsProps = {
   height: number;  // altura do painel (px)
   title?: string;
   standings: Standing[];
+  accentColor?: string;   // cor do tracinho + texto do selo (default = vermelho Ferrari)
+  headingFont?: string;   // fonte de posição/nome/pontos (default = Anton)
+  headingWeight?: number; // peso do headingFont (default = 400, o único peso do Anton)
+  bodyFont?: string;      // fonte do selo "CLASSIFICA PILOTI" (default = Neue Haas Grotesk)
+  showHeader?: boolean;   // mostra o selo "CLASSIFICA PILOTI" no topo (default = true)
+  showLogo?: boolean;     // mostra o logo da montadora em cada linha (default = true)
   visibleRows?: number;   // quantas linhas aparecem por vez
   holdSec?: number;       // segundos parado (no topo e no fim)
   perRowSec?: number;     // velocidade do scroll (segundos por linha)
@@ -34,7 +40,7 @@ function darken(hex: string, amt = 0.74) {
   return `rgb(${d(r)}, ${d(g)}, ${d(b)})`;
 }
 
-const Row: React.FC<{ s: Standing; rowH: number }> = ({ s, rowH }) => {
+const Row: React.FC<{ s: Standing; rowH: number; headingFont: string; headingWeight?: number; showLogo: boolean }> = ({ s, rowH, headingFont, headingWeight, showLogo }) => {
   // largura das colunas FIXA (não proporcional a rowH) — senão, com poucas linhas
   // visíveis numa faixa alta, essas colunas incham e sobra quase nada pro nome.
   const posW = 54;
@@ -54,28 +60,30 @@ const Row: React.FC<{ s: Standing; rowH: number }> = ({ s, rowH }) => {
     >
       {/* posição */}
       <div style={{ width: posW, height: "100%", flexShrink: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ fontFamily: HEAVY, fontSize: 28, color: "#fff", lineHeight: 1 }}>{s.pos}</span>
+        <span style={{ fontFamily: headingFont, fontWeight: headingWeight, fontSize: 28, color: "#fff", lineHeight: 1 }}>{s.pos}</span>
       </div>
 
-      {/* logo da montadora */}
-      <div style={{ width: logoW, height: "100%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        {s.teamLogoSrc ? (
-          <Img src={s.teamLogoSrc} style={{ width: `${Math.min(80, 50 * (s.logoScale ?? 1))}%`, height: `${Math.min(80, 50 * (s.logoScale ?? 1))}%`, objectFit: "contain" }} />
-        ) : (
-          <div style={{ width: "44%", height: "44%", borderRadius: 5, background: "rgba(255,255,255,0.85)" }} />
-        )}
-      </div>
+      {/* logo da montadora (opcional) */}
+      {showLogo ? (
+        <div style={{ width: logoW, height: "100%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {s.teamLogoSrc ? (
+            <Img src={s.teamLogoSrc} style={{ width: `${Math.min(80, 50 * (s.logoScale ?? 1))}%`, height: `${Math.min(80, 50 * (s.logoScale ?? 1))}%`, objectFit: "contain" }} />
+          ) : (
+            <div style={{ width: "44%", height: "44%", borderRadius: 5, background: "rgba(255,255,255,0.85)" }} />
+          )}
+        </div>
+      ) : null}
 
       {/* nome — fica com o espaço que sobra (a maior parte da linha) */}
       <div style={{ flex: 1, minWidth: 0, paddingLeft: 12, paddingRight: 6, overflow: "hidden" }}>
-        <span style={{ display: "block", fontFamily: HEAVY, fontSize: 23, color: "#fff", letterSpacing: 0.4, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textShadow: "0 2px 6px rgba(0,0,0,0.55)" }}>
+        <span style={{ display: "block", fontFamily: headingFont, fontWeight: headingWeight, fontSize: 23, color: "#fff", letterSpacing: 0.4, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textShadow: "0 2px 6px rgba(0,0,0,0.55)" }}>
           {s.name}
         </span>
       </div>
 
       {/* pontos */}
       <div style={{ width: ptsW, height: "100%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.35)" }}>
-        <span style={{ fontFamily: HEAVY, fontSize: 26, color: "#fff", lineHeight: 1 }}>{s.points}</span>
+        <span style={{ fontFamily: headingFont, fontWeight: headingWeight, fontSize: 26, color: "#fff", lineHeight: 1 }}>{s.points}</span>
       </div>
     </div>
   );
@@ -86,6 +94,12 @@ export const DriverStandings: React.FC<DriverStandingsProps> = ({
   height,
   title = "CLASSIFICA PILOTI",
   standings,
+  accentColor = RED,
+  headingFont = HEAVY,
+  headingWeight,
+  bodyFont = BODY,
+  showHeader = true,
+  showLogo = true,
   visibleRows = 4,
   holdSec = 5,
   perRowSec = 1.4,
@@ -93,7 +107,7 @@ export const DriverStandings: React.FC<DriverStandingsProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const headerH = 46; // selo fixo e enxuto — não é mais uma caixa de título grande
+  const headerH = showHeader ? 46 : 0; // selo fixo e enxuto — some se showHeader=false
   const rowsAreaH = height - headerH;
   const MAX_ROW_H = 84; // trava a altura da linha — senão, com poucas linhas numa faixa
   // alta, cada linha vira gigante (era o motivo do "nome cortado pra 1 letra")
@@ -113,18 +127,20 @@ export const DriverStandings: React.FC<DriverStandingsProps> = ({
   return (
     <div style={{ width, height, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       {/* selo (eyebrow) — mesmo estilo do "PROSSIMO GP": sem caixa/fundo próprio, herda o painel */}
-      <div style={{ height: headerH, flexShrink: 0, display: "flex", alignItems: "center", gap: 10, padding: `0 ${Math.round(width * 0.055)}px`, minWidth: 0 }}>
-        <div style={{ width: 6, height: 18, background: RED, flexShrink: 0 }} />
-        <span style={{ flex: 1, minWidth: 0, fontFamily: BODY, fontWeight: 800, fontSize: 15, letterSpacing: 2.2, color: RED, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {title}
-        </span>
-      </div>
+      {showHeader ? (
+        <div style={{ height: headerH, flexShrink: 0, display: "flex", alignItems: "center", gap: 10, padding: `0 ${Math.round(width * 0.055)}px`, minWidth: 0 }}>
+          <div style={{ width: 6, height: 18, background: accentColor, flexShrink: 0 }} />
+          <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontWeight: 800, fontSize: 15, letterSpacing: 2.2, color: accentColor, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {title}
+          </span>
+        </div>
+      ) : null}
 
       {/* área que rola */}
       <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
         <div style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${scroll}px)` }}>
           {standings.map((s, i) => (
-            <Row key={i} s={s} rowH={rowH} />
+            <Row key={i} s={s} rowH={rowH} headingFont={headingFont} headingWeight={headingWeight} showLogo={showLogo} />
           ))}
         </div>
       </div>

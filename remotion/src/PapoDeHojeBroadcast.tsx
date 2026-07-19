@@ -1,6 +1,6 @@
 import { useCurrentFrame, useVideoConfig, Img, OffthreadVideo, Audio, Sequence, staticFile } from "remotion";
 import { SubscribeBar } from "./SubscribePopup";
-import { pickHeadline, HeadlineItem } from "./rotatingHeadline";
+import { pickHeadline, hasHeadlineContent, HeadlineItem } from "./rotatingHeadline";
 import { PhotoPunchOverlays, PhotoOverlayItem } from "./PhotoPunchOverlay";
 
 export type PDHSegment = { src: string; type: "photo" | "video"; durationSec: number; startSec?: number };
@@ -68,14 +68,14 @@ export const PapoDeHojeBroadcast: React.FC<PapoDeHojeBroadcastProps> = ({
   const { fps } = useVideoConfig();
 
   // manchete ativa no frame (rotaciona se vier a lista `headlines`, senão fixa)
-  const hl = pickHeadline(
-    headlines && headlines.length ? headlines : [{ headline, subheadline }],
-    frame, fps, headlineRotateSec,
-  );
+  const headlineList = headlines && headlines.length ? headlines : [{ headline, subheadline }];
+  const hl = pickHeadline(headlineList, frame, fps, headlineRotateSec);
+  // sem manchete em NENHUM ponto do vídeo → não reserva rodapé, o quadro toma tudo
+  const hasHeadline = hasHeadlineContent(headlineList);
 
   // ── Layout (1920x1080): quadro grande ocupa tudo, manchete no rodapé ──
   const PAD = 22;
-  const BOT_H = 132;
+  const BOT_H = hasHeadline ? 132 : 0;
   const gridTop = PAD;
   const gridBottom = 1080 - PAD - BOT_H - PAD;
   const gridH = gridBottom - gridTop;
@@ -119,22 +119,24 @@ export const PapoDeHojeBroadcast: React.FC<PapoDeHojeBroadcastProps> = ({
 
       {audioSrc ? <Audio src={audioSrc} /> : null}
 
-      {/* ── RODAPÉ: manchete ───────────────────────────────────── */}
-      <div style={{ position: "absolute", left: PAD, top: botBarY, width: gridW, height: BOT_H, background: BAR_BG, display: "flex", alignItems: "center", overflow: "hidden" }}>
-        <div style={{ width: 180, height: "100%", background: LOGO_BG, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: "12px 16px" }}>
-          {programLogoSrc ? (
-            <Img src={programLogoSrc} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
-          ) : null}
-        </div>
-        <div style={{ flex: 1, padding: "0 30px", minWidth: 0, opacity: hl.opacity }}>
-          <div style={{ fontFamily: FONT, fontWeight: 900, fontSize: 46, color: "#fff", letterSpacing: 0.2, lineHeight: 1.0, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {hl.headline}
+      {/* ── RODAPÉ: manchete (só existe se houver manchete configurada) ── */}
+      {hasHeadline ? (
+        <div style={{ position: "absolute", left: PAD, top: botBarY, width: gridW, height: BOT_H, background: BAR_BG, display: "flex", alignItems: "center", overflow: "hidden" }}>
+          <div style={{ width: 180, height: "100%", background: LOGO_BG, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: "12px 16px" }}>
+            {programLogoSrc ? (
+              <Img src={programLogoSrc} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+            ) : null}
           </div>
-          <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 23, color: "#c9c9cf", marginTop: 3, letterSpacing: 0.3, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {hl.subheadline}
+          <div style={{ flex: 1, padding: "0 30px", minWidth: 0, opacity: hl.opacity }}>
+            <div style={{ fontFamily: FONT, fontWeight: 900, fontSize: 46, color: "#fff", letterSpacing: 0.2, lineHeight: 1.0, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {hl.headline}
+            </div>
+            <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 23, color: "#c9c9cf", marginTop: 3, letterSpacing: 0.3, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {hl.subheadline}
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
 
       {/* ── Barra de inscrição (mãozinha) em ciclo — mocada ── */}
       {showSubscribe ? (

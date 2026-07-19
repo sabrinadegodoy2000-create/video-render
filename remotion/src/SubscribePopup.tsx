@@ -8,6 +8,10 @@ export type SubscribeBarProps = {
   offsetSec?: number; // atraso da 1ª aparição (default 0)
   subscribeText?: string;  // ex: "Iscriviti" (it) / "Suscríbete" (es)
   subscribedText?: string; // ex: "Iscritto" (it) / "Suscrito" (es)
+  fontFamily?: string; // default = Neue Haas Grotesk (fonte do canal, se diferente)
+  dock?: "bottom-center" | "top-right"; // onde a barra descansa + de onde ela entra (default = "bottom-center")
+  scale?: number; // escala geral da barra (default = 1)
+  ctaColor?: string; // cor do botão "Iscriviti" não-inscrito (default = vermelho YouTube)
 };
 
 export type SubscribePopupProps = SubscribeBarProps & {
@@ -27,6 +31,10 @@ export const SubscribeBar: React.FC<SubscribeBarProps> = ({
   offsetSec = 0,
   subscribeText = "Iscriviti",
   subscribedText = "Iscritto",
+  fontFamily = FONT,
+  dock = "bottom-center",
+  scale = 1,
+  ctaColor = "#ff0000",
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -38,12 +46,18 @@ export const SubscribeBar: React.FC<SubscribeBarProps> = ({
   const clamp = { extrapolateLeft: "clamp" as const, extrapolateRight: "clamp" as const };
 
   // ── Linha do tempo da animação (dentro do ciclo) ────────────────
-  // entra (de baixo) → mão vem da esquerda → clica LIKE → INSCREVER → SINO → segura → sai
+  // entra → mão vem da esquerda → clica LIKE → INSCREVER → SINO → segura → sai
   const slideIn = interpolate(t, [0, 0.5], [0, 1], clamp);
   const slideOut = interpolate(t, [6.4, 7.0], [1, 0], clamp);
   const visible = slideIn * slideOut;
-  // entra de baixo pra cima e sai voltando pra baixo
-  const offsetY = interpolate(t, [0, 0.5, 6.4, 7.0], [120, 0, 0, 120], clamp);
+  // "bottom-center" (padrão): descansa embaixo, centralizada; entra de baixo pra cima
+  // "top-right": descansa no canto superior direito; entra vindo de cima-direita (fora da tela)
+  const offsetY = dock === "bottom-center"
+    ? interpolate(t, [0, 0.5, 6.4, 7.0], [120, 0, 0, 120], clamp)
+    : interpolate(t, [0, 0.5, 6.4, 7.0], [-140, 0, 0, -140], clamp);
+  const offsetX = dock === "top-right"
+    ? interpolate(t, [0, 0.5, 6.4, 7.0], [220, 0, 0, 220], clamp)
+    : 0;
 
   // Ordem dos cliques: like → inscrever → sino
   const liked = t >= 1.7;        // joinha acende (1º)
@@ -76,14 +90,23 @@ export const SubscribeBar: React.FC<SubscribeBarProps> = ({
 
   const BAR_H = 132;
 
+  const dockStyle = dock === "top-right"
+    ? { right: 48, top: 48 }
+    : { left: "50%" as const, bottom: 110 };
+  const dockTransform = dock === "top-right"
+    ? `translateX(${offsetX}px) translateY(${offsetY}px) scale(${scale})`
+    : `translateX(-50%) translateX(${offsetX}px) translateY(${offsetY}px) scale(${scale})`;
+  // ancora o encolhimento no canto certo — a barra não "flutua" pra longe da posição de repouso
+  const scaleOrigin = dock === "top-right" ? "top right" : "center bottom";
+
   return (
     <div
       style={{
         position: "absolute",
-        left: "50%",
-        bottom: 110,
+        ...dockStyle,
         opacity: visible,
-        transform: `translateX(-50%) translateY(${offsetY}px)`,
+        transform: dockTransform,
+        transformOrigin: scaleOrigin,
         zIndex: 50,
       }}
     >
@@ -117,10 +140,10 @@ export const SubscribeBar: React.FC<SubscribeBarProps> = ({
 
           {/* Nome + handle */}
           <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", marginRight: 6 }}>
-            <span style={{ fontFamily: FONT, fontWeight: 700, fontSize: 34, color: "#0f0f0f", lineHeight: 1.1, whiteSpace: "nowrap" }}>
+            <span style={{ fontFamily, fontWeight: 700, fontSize: 34, color: "#0f0f0f", lineHeight: 1.1, whiteSpace: "nowrap" }}>
               {channelName}
             </span>
-            <span style={{ fontFamily: FONT, fontWeight: 500, fontSize: 22, color: "#9a9a9a", lineHeight: 1.2, whiteSpace: "nowrap" }}>
+            <span style={{ fontFamily, fontWeight: 500, fontSize: 22, color: "#9a9a9a", lineHeight: 1.2, whiteSpace: "nowrap" }}>
               {channelHandle}
             </span>
           </div>
@@ -141,10 +164,10 @@ export const SubscribeBar: React.FC<SubscribeBarProps> = ({
               height: 64,
               width: 270, // largura fixa: não muda entre "INSCREVER-SE" e "INSCRITO"
               borderRadius: 32,
-              background: subscribed ? "#e5e5e5" : "#ff0000",
+              background: subscribed ? "#e5e5e5" : ctaColor,
             }}
           >
-            <span style={{ fontFamily: FONT, fontWeight: 700, fontSize: 28, letterSpacing: 0.5, color: subscribed ? "#606060" : "#ffffff", whiteSpace: "nowrap", textTransform: "uppercase" }}>
+            <span style={{ fontFamily, fontWeight: 700, fontSize: 28, letterSpacing: 0.5, color: subscribed ? "#606060" : "#ffffff", whiteSpace: "nowrap", textTransform: "uppercase" }}>
               {subscribed ? subscribedText : subscribeText}
             </span>
           </div>

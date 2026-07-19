@@ -3,6 +3,16 @@ import { interpolate } from "remotion";
 export type HeadlineItem = { headline: string; subheadline?: string };
 
 /**
+ * true se existe manchete de verdade (1+ item com headline OU subheadline preenchido).
+ * Decisão ESTÁTICA pro layout (calculada uma vez, não por frame): sem manchete, o
+ * componente pode reservar zero espaço pro rodapé e deixar o vídeo tomar tudo, sem
+ * risco de redimensionar no meio do vídeo numa rotação de manchetes.
+ */
+export function hasHeadlineContent(items: HeadlineItem[]): boolean {
+  return (items || []).some((h) => h && (h.headline || h.subheadline));
+}
+
+/**
  * Rotaciona manchetes a cada `rotateSec` segundos (default 60).
  * - 0/1 item  → manchete fixa até o fim, sem fade.
  * - N itens   → intercala em loop até o fim do vídeo, com um fade curto na troca.

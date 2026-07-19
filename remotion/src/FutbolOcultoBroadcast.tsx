@@ -1,6 +1,6 @@
 import { useCurrentFrame, useVideoConfig, Img, OffthreadVideo, Audio, Sequence, staticFile } from "remotion";
 import { SubscribeBar } from "./SubscribePopup";
-import { pickHeadline, HeadlineItem } from "./rotatingHeadline";
+import { pickHeadline, hasHeadlineContent, HeadlineItem } from "./rotatingHeadline";
 import { PhotoPunchOverlays, PhotoOverlayItem } from "./PhotoPunchOverlay";
 
 export type FOSegment = { src: string; type: "photo" | "video"; durationSec: number; startSec?: number };
@@ -64,10 +64,11 @@ export const FutbolOcultoBroadcast: React.FC<FutbolOcultoBroadcastProps> = ({
   const { fps } = useVideoConfig();
 
   // manchete ativa no frame (rotaciona se vier a lista `headlines`, senão fixa)
-  const hl = pickHeadline(
-    headlines && headlines.length ? headlines : [{ headline, subheadline }],
-    frame, fps, headlineRotateSec,
-  );
+  const headlineList = headlines && headlines.length ? headlines : [{ headline, subheadline }];
+  const hl = pickHeadline(headlineList, frame, fps, headlineRotateSec);
+  // sem manchete em NENHUM ponto do vídeo → some com todo o overlay do rodapé
+  // (degradê + linha + logo + texto); o vídeo já é full-bleed, então não há o que redimensionar
+  const hasHeadline = hasHeadlineContent(headlineList);
 
   return (
     <div style={{ width: 1920, height: 1080, background: BG_DARK, position: "relative", overflow: "hidden" }}>
@@ -88,34 +89,39 @@ export const FutbolOcultoBroadcast: React.FC<FutbolOcultoBroadcastProps> = ({
 
       {audioSrc ? <Audio src={audioSrc} /> : null}
 
-      {/* ── Degradê escuro no rodapé (deixa a manchete legível sobre o vídeo) ── */}
-      <div
-        style={{
-          position: "absolute", left: 0, right: 0, bottom: 0, height: 360,
-          background: "linear-gradient(180deg, rgba(10,7,5,0) 0%, rgba(10,7,5,0.55) 45%, rgba(10,7,5,0.92) 100%)",
-          pointerEvents: "none",
-        }}
-      />
+      {/* ── Overlay do rodapé (degradê + linha + logo + manchete) — só existe se houver manchete ── */}
+      {hasHeadline ? (
+        <>
+          {/* degradê escuro (deixa a manchete legível sobre o vídeo) */}
+          <div
+            style={{
+              position: "absolute", left: 0, right: 0, bottom: 0, height: 360,
+              background: "linear-gradient(180deg, rgba(10,7,5,0) 0%, rgba(10,7,5,0.55) 45%, rgba(10,7,5,0.92) 100%)",
+              pointerEvents: "none",
+            }}
+          />
 
-      {/* ── Linha de acento dourado/vinho ── */}
-      <div style={{ position: "absolute", left: 60, right: 60, bottom: 172, height: 3, background: `linear-gradient(90deg, ${GOLD}, ${MAROON})`, opacity: hl.opacity }} />
+          {/* linha de acento dourado/vinho */}
+          <div style={{ position: "absolute", left: 60, right: 60, bottom: 172, height: 3, background: `linear-gradient(90deg, ${GOLD}, ${MAROON})`, opacity: hl.opacity }} />
 
-      {/* ── MANCHETE: sobreposta ao vídeo, no rodapé ── */}
-      <div style={{ position: "absolute", left: 60, right: 60, bottom: 56, display: "flex", alignItems: "center", gap: 26 }}>
-        <div style={{ width: 112, height: 112, borderRadius: "50%", flexShrink: 0, overflow: "hidden", border: `2px solid ${GOLD}`, boxShadow: "0 6px 18px rgba(0,0,0,0.5)" }}>
-          {programLogoSrc ? (
-            <Img src={programLogoSrc} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          ) : null}
-        </div>
-        <div style={{ flex: 1, minWidth: 0, opacity: hl.opacity }}>
-          <div style={{ fontFamily: FONT, fontWeight: 900, fontSize: 48, color: "#fff", letterSpacing: 0.2, lineHeight: 1.05, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textShadow: "0 2px 10px rgba(0,0,0,0.6)" }}>
-            {hl.headline}
+          {/* manchete: sobreposta ao vídeo, no rodapé */}
+          <div style={{ position: "absolute", left: 60, right: 60, bottom: 56, display: "flex", alignItems: "center", gap: 26 }}>
+            <div style={{ width: 112, height: 112, borderRadius: "50%", flexShrink: 0, overflow: "hidden", border: `2px solid ${GOLD}`, boxShadow: "0 6px 18px rgba(0,0,0,0.5)" }}>
+              {programLogoSrc ? (
+                <Img src={programLogoSrc} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : null}
+            </div>
+            <div style={{ flex: 1, minWidth: 0, opacity: hl.opacity }}>
+              <div style={{ fontFamily: FONT, fontWeight: 900, fontSize: 48, color: "#fff", letterSpacing: 0.2, lineHeight: 1.05, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textShadow: "0 2px 10px rgba(0,0,0,0.6)" }}>
+                {hl.headline}
+              </div>
+              <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 24, color: GOLD, marginTop: 5, letterSpacing: 0.4, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textShadow: "0 2px 8px rgba(0,0,0,0.6)" }}>
+                {hl.subheadline}
+              </div>
+            </div>
           </div>
-          <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 24, color: GOLD, marginTop: 5, letterSpacing: 0.4, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textShadow: "0 2px 8px rgba(0,0,0,0.6)" }}>
-            {hl.subheadline}
-          </div>
-        </div>
-      </div>
+        </>
+      ) : null}
 
       {/* ── Barra de inscrição (mãozinha) em ciclo — mocada ── */}
       {showSubscribe ? (

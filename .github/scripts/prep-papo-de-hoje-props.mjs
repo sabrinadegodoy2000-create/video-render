@@ -13,7 +13,7 @@
 import fs from "fs";
 import path from "path";
 import { execFileSync } from "child_process";
-import { montarPools, distribuirMidias, distribuirBlocos, agendarFotosOverlay } from "./media-distribute.mjs";
+import { montarPools, distribuirMidias, distribuirBlocos, agendarPunchOverlay } from "./media-distribute.mjs";
 
 const [, , jobFile, mediaDir, outFile] = process.argv;
 if (!jobFile || !mediaDir || !outFile) {
@@ -139,11 +139,13 @@ function distribuirPorBlocoSeHouver(mediaDir, todasEntradas, totalDuration, outS
       let acc = 0;
       const blocos = audios.map((_, i) => {
         const startSec = acc; const durationSec = durBloco(i); acc += durationSec;
-        // overlays são imagens; vídeo solto num bloco é ignorado (o fundo já é vídeo)
-        return { startSec, durationSec, fotos: entradasDoBloco(i).filter((e) => !e.isVideo) };
+        // fotos E vídeos soltos do bloco intercalam por cima do vídeo de fundo
+        return { startSec, durationSec, itens: entradasDoBloco(i) };
       });
-      PHOTO_OVERLAYS = agendarFotosOverlay(blocos, toFileUrl);
-      console.log(`[PREP] Vídeo de fundo CONTÍNUO + ${PHOTO_OVERLAYS.length} foto(s) punch-in (${audios.length} bloco(s), ${sharedVideos.length} vídeo(s))`);
+      PHOTO_OVERLAYS = agendarPunchOverlay(blocos, toFileUrl);
+      const nFotos = PHOTO_OVERLAYS.filter((o) => o.type !== "video").length;
+      const nVideos = PHOTO_OVERLAYS.filter((o) => o.type === "video").length;
+      console.log(`[PREP] Vídeo de fundo CONTÍNUO + ${nFotos} foto(s) + ${nVideos} vídeo(s) punch-in (${audios.length} bloco(s), ${sharedVideos.length} vídeo(s) de fundo)`);
     } else {
       // cada bloco se vira com a própria mídia (vazio → usa todas)
       const blocos = audios.map((_, i) => {

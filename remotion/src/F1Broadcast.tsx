@@ -28,6 +28,13 @@ export type F1BroadcastProps = {
   showSubscribe?: boolean;    // barra de inscrição (mãozinha clicando) em ciclo
   subscribeCycleSec?: number; // de quanto em quanto tempo a barra reaparece (default 30)
   bigAudio?: boolean;         // toca o áudio do vídeo de fundo (modo "vídeo grande")
+  showCopyrightWatermark?: boolean; // liga marca d'água (grade) + aviso central — default false, resolve o logo internamente
+  watermarkSrc?: string;      // imagem da marca d'água (default = logo do programa, se showCopyrightWatermark)
+  watermarkOpacity?: number;  // opacidade de cada marca (default 0.3)
+  watermarkTileSize?: number; // tamanho de cada "ladrilho" em px (default 220)
+  watermarkRotateDeg?: number; // rotação da grade (default -28)
+  centerNoticeText?: string;   // aviso centralizado por cima da marca d'água (default = frase de copyright, se showCopyrightWatermark)
+  watermarkWindows?: { startSec: number; durationSec: number }[]; // se vier, marca d'água+aviso só aparecem nessas janelas (senão, sempre visível)
   // Legado (layout antigo, não usados neste layout — mantidos só por compat de tipos):
   fixedImageSrc?: string;
   pipVideoSrc?: string;
@@ -106,9 +113,24 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   showSubscribe = false,
   subscribeCycleSec = 30,
   bigAudio = false,
+  showCopyrightWatermark = false,
+  watermarkSrc,
+  watermarkOpacity = 0.3,
+  watermarkTileSize = 220,
+  watermarkRotateDeg = -28,
+  centerNoticeText,
+  watermarkWindows,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+
+  // resolve o logo default via staticFile() AQUI DENTRO (precisa do runtime do Remotion —
+  // um prep script em Node não consegue montar essa URL, o base muda por bundle/render)
+  const effectiveWatermarkSrc = showCopyrightWatermark ? (watermarkSrc || staticFile("logo-programa.png")) : watermarkSrc;
+  const effectiveNoticeText = showCopyrightWatermark ? (centerNoticeText || "Contenuto protetto da diritti d'autore") : centerNoticeText;
+  // sem watermarkWindows = sempre visível (comportamento do teste local); com janelas, só aparece dentro delas
+  const t = frame / fps;
+  const inWatermarkWindow = !watermarkWindows || watermarkWindows.some((w) => t >= w.startSec && t < w.startSec + w.durationSec);
 
   // manchete ativa no frame (rotaciona se vier a lista `headlines`, senão fixa)
   const headlineList = headlines && headlines.length ? headlines : [{ headline, subheadline }];
@@ -165,6 +187,45 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
           </>
         ) : backgroundSrc ? (
           <Img src={backgroundSrc} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : null}
+        {/* marca d'água em grade repetida por cima do vídeo/fotos — inset negativo +
+            rotação garantem cobertura total até nos cantos; o overflow:hidden do
+            container pai corta o excesso */}
+        {effectiveWatermarkSrc && inWatermarkWindow ? (
+          <div
+            style={{
+              position: "absolute", inset: "-30%", pointerEvents: "none",
+              backgroundImage: `url(${effectiveWatermarkSrc})`,
+              backgroundRepeat: "repeat",
+              backgroundSize: `${watermarkTileSize}px`,
+              opacity: watermarkOpacity,
+              transform: `rotate(${watermarkRotateDeg}deg)`,
+              transformOrigin: "center",
+            }}
+          />
+        ) : null}
+        {/* aviso centralizado — por cima da marca d'água */}
+        {effectiveNoticeText && inWatermarkWindow ? (
+          <div
+            style={{
+              position: "absolute", inset: 0, pointerEvents: "none",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              padding: "0 6%",
+            }}
+          >
+            <span
+              style={{
+                fontFamily: HEAD_FONT, fontWeight: 800, fontSize: 44,
+                color: "#fff", textAlign: "center", lineHeight: 1.15,
+                textTransform: "uppercase", letterSpacing: 1,
+                background: "#D40000",
+                padding: "30px 32px",
+                transform: "rotate(-12deg)",
+              }}
+            >
+              {effectiveNoticeText}
+            </span>
+          </div>
         ) : null}
         {/* esmaece pro tom do painel nas bordas direita/inferior — sem linha de corte,
             o vídeo "flui" pra dentro dos painéis em vez de terminar num degrau seco */}

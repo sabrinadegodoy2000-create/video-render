@@ -16,7 +16,7 @@ import fs from "fs";
 import path from "path";
 import { execFileSync } from "child_process";
 import { buildCueSheet } from "./f1-entities.mjs";
-import { montarPools, distribuirMidias, distribuirBlocos, agendarFotosOverlay } from "./media-distribute.mjs";
+import { montarPools, distribuirMidias, distribuirBlocos, agendarPunchOverlay } from "./media-distribute.mjs";
 
 const [, , jobFile, mediaDir, outFile] = process.argv;
 if (!jobFile || !mediaDir || !outFile) {
@@ -27,12 +27,13 @@ if (!jobFile || !mediaDir || !outFile) {
 const job = JSON.parse(fs.readFileSync(jobFile, "utf-8"));
 const SECONDS_PER_ITEM = Number(job.secondsPerItem) > 0 ? Number(job.secondsPerItem) : 3;
 
-// Modo: normal (PiP) | narracao (áudios) | bigvideo (vídeo único no quadro grande)
+// Modo: normal (PiP) | narracao (áudios) | bigvideo (vídeo único no quadro grande) | narracao2 (fundo com marca d'água + mídias alternando)
 // Retrocompat: FULLSCREEN=true equivale a MODE=narracao.
 const legacyFull = ["1", "true", "yes", "on", "sim"].includes(String(process.env.FULLSCREEN || "").toLowerCase());
 const MODE = (String(process.env.MODE || "").toLowerCase()) || (legacyFull ? "narracao" : "normal");
 const fullscreen = MODE === "narracao";      // layout classificação/pista + duração pelos áudios
 const bigVideoMode = MODE === "bigvideo";    // vídeo único no quadro grande (com áudio) + classificação/pista
+const narracao2Mode = MODE === "narracao2";  // fundo com marca d'água intercalando com mídias upadas
 
 function resolveMedia(filename, label) {
   if (!filename) throw new Error(`Campo "${label}" vazio`);
@@ -110,11 +111,13 @@ function distribuirPorBlocoSeHouver(mediaDir, todasEntradas, totalDuration, outS
       let acc = 0;
       const blocos = audios.map((_, i) => {
         const startSec = acc; const durationSec = durBloco(i); acc += durationSec;
-        // overlays são imagens; vídeo solto num bloco é ignorado (o fundo já é vídeo)
-        return { startSec, durationSec, fotos: entradasDoBloco(i).filter((e) => !e.isVideo) };
+        // fotos E vídeos soltos do bloco intercalam por cima do vídeo de fundo
+        return { startSec, durationSec, itens: entradasDoBloco(i) };
       });
-      PHOTO_OVERLAYS = agendarFotosOverlay(blocos, toFileUrl);
-      console.log(`[PREP] Vídeo de fundo CONTÍNUO + ${PHOTO_OVERLAYS.length} foto(s) punch-in (${audios.length} bloco(s), ${sharedVideos.length} vídeo(s))`);
+      PHOTO_OVERLAYS = agendarPunchOverlay(blocos, toFileUrl);
+      const nFotos = PHOTO_OVERLAYS.filter((o) => o.type !== "video").length;
+      const nVideos = PHOTO_OVERLAYS.filter((o) => o.type === "video").length;
+      console.log(`[PREP] Vídeo de fundo CONTÍNUO + ${nFotos} foto(s) + ${nVideos} vídeo(s) punch-in (${audios.length} bloco(s), ${sharedVideos.length} vídeo(s) de fundo)`);
     } else {
       const blocos = audios.map((_, i) => {
         let entradas = entradasDoBloco(i);
@@ -246,9 +249,57 @@ async function fetchStandings(topN = 10) {
 // ── Fonte da duração + montagem do quadro grande ─────────────────
 let totalDuration, pipPath = null, audioPath = null, pipFile = "", bigVideoPath = null;
 let PHOTO_OVERLAYS = null; // fotos punch-in (modo vídeo de fundo contínuo)
+let watermarkWindows = null; // janelas com marca d'água (modo narração v2)
 const bigSegments = [];
 
-if (bigVideoMode) {
+if (narracao2Mode) {
+  // "Narração v2": UM fundo (imagem ou vídeo) com marca d'água + aviso de copyright,
+  // intercalando em batidas de `SECONDS_PER_ITEM`s com as mídias upadas (sem marca d'água).
+  // Convenção de nome dos arquivos (vem do server.py): "bg_*" = fundo; "altNN_*" = alternadas, em ordem.
+  audioPath = resolveMedia("narration.m4a", "narração");
+  totalDuration = Math.ceil(mediaDuration(audioPath));
+  if (!totalDuration) throw new Error("Não consegui medir a duração da narração (narration.m4a).");
+
+  const files = fs.readdirSync(mediaDir);
+  const bgFile = files.find((f) => f.startsWith("bg_"));
+  if (!bgFile) throw new Error("Narração v2: nenhum arquivo de fundo (bg_*) encontrado.");
+  const bgPath = resolveMedia(bgFile, "fundo");
+  const bgIsVideo = VIDEO_EXTS.has(path.extname(bgPath).toLowerCase());
+  const bgSlices = bgIsVideo ? Math.max(1, Math.floor(mediaDuration(bgPath) / SECONDS_PER_ITEM)) : 1;
+
+  const altItems = files
+    .filter((f) => /^alt\d+_/.test(f))
+    .sort()
+    .map((f) => {
+      const absPath = resolveMedia(f, "mídia alternada");
+      return { absPath, isVideo: VIDEO_EXTS.has(path.extname(absPath).toLowerCase()) };
+    });
+
+  const nBeats = Math.ceil(totalDuration / SECONDS_PER_ITEM);
+  let acc = 0, bgSliceIdx = 0, altIdx = 0;
+  watermarkWindows = [];
+  for (let i = 0; i < nBeats; i++) {
+    const dur = Math.min(SECONDS_PER_ITEM, totalDuration - acc);
+    // fundo, mídia, fundo, mídia... — se não subiu nenhuma alternada, fica só no fundo
+    const isBgBeat = i % 2 === 0 || altItems.length === 0;
+    if (isBgBeat) {
+      if (bgIsVideo) {
+        const startSec = (bgSliceIdx % bgSlices) * SECONDS_PER_ITEM;
+        bgSliceIdx++;
+        bigSegments.push({ src: toFileUrl(bgPath), type: "video", durationSec: dur, startSec });
+      } else {
+        bigSegments.push({ src: toFileUrl(bgPath), type: "photo", durationSec: dur });
+      }
+      watermarkWindows.push({ startSec: +acc.toFixed(2), durationSec: dur });
+    } else {
+      const alt = altItems[altIdx % altItems.length];
+      altIdx++;
+      bigSegments.push({ src: toFileUrl(alt.absPath), type: alt.isVideo ? "video" : "photo", durationSec: dur });
+    }
+    acc += dur;
+  }
+  console.log(`[PREP] Modo NARRAÇÃO V2 — fundo ${bgIsVideo ? "vídeo" : "imagem"} (${path.basename(bgPath)}) + ${altItems.length} mídia(s) alternada(s) — ${totalDuration}s, ${bigSegments.length} batida(s)`);
+} else if (bigVideoMode) {
   // vídeo único no quadro grande (com áudio); duração = a dele
   const bigFile = process.env.MAIN_VIDEO || job.mainVideo;
   bigVideoPath = resolveMedia(bigFile, "vídeo grande");
@@ -352,7 +403,13 @@ const props = {
 if (headlines.length > 1) props.headlines = headlines;
 if (PHOTO_OVERLAYS && PHOTO_OVERLAYS.length) props.photoOverlays = PHOTO_OVERLAYS;
 
-if (bigVideoMode) {
+if (narracao2Mode) {
+  props.fullscreenMode = true;
+  props.audioSrc = toFileUrl(audioPath);
+  props.showEndExpand = false;
+  props.showCopyrightWatermark = true;
+  if (watermarkWindows) props.watermarkWindows = watermarkWindows;
+} else if (bigVideoMode) {
   // vídeo único no quadro grande (com áudio) + layout classificação/pista
   props.fullscreenMode = true;
   props.bigAudio = true;

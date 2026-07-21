@@ -84,28 +84,46 @@ export function distribuirBlocos(blocos, spi, toUrl, mediaDuration) {
 /**
  * Modo "vídeo de fundo contínuo": o vídeo compartilhado é a camada BASE (roda o tempo
  * todo — gerado à parte com distribuirMidias só de vídeo). Esta função agenda as fotos
- * de cada bloco como "punch-in" em TELA CHEIA por cima, por `fotoDur`s cada, com um
- * respiro de vídeo entre elas. Fotos que não couberem na janela do bloco não entram.
- *
- * @param {Array} blocos [{ startSec, durationSec, fotos:[{absPath}] }]  janelas dos blocos
+ * e vídeos soltos de cada bloco como "punch-in" em TELA CHEIA por cima, intercalando,
+ * com um respiro de vídeo de fundo entre cada um. Bloco sem nenhum vídeo usa stride
+ * uniforme (item centralizado no seu slot, distribuído por todo o bloco). Bloco com
+ * vídeo(s) usa posicionamento SEQUENCIAL (cada item com sua própria duração + respiro),
+ * já que durações mistas (foto curta / vídeo mais longo) quebram a matemática do stride
+ * uniforme. Itens que não couberem na janela do bloco não entram.
+ * @param {Array} blocos [{ startSec, durationSec, itens:[{absPath, isVideo}] }]
  * @param {(p:string)=>string} toUrl
- * @param {{fotoDur?:number, gapMin?:number}} opts  fotoDur=duração da foto; gapMin=vídeo mínimo entre fotos
- * @returns {Array} overlays [{ src, startSec, durationSec }]  (tempos absolutos na timeline)
+ * @param {{fotoDur?:number, videoDur?:number, gapMin?:number}} opts
+ * @returns {Array} overlays [{ src, startSec, durationSec, type }]
  */
-export function agendarFotosOverlay(blocos, toUrl, { fotoDur = 3, gapMin = 2 } = {}) {
+export function agendarPunchOverlay(blocos, toUrl, { fotoDur = 3, videoDur = 5.5, gapMin = 2 } = {}) {
   const overlays = [];
   for (const b of blocos) {
-    const fotos = b.fotos || [];
-    if (!fotos.length || !(b.durationSec > 0)) continue;
-    const cycle = fotoDur + gapMin;
-    const maxN = Math.max(1, Math.floor(b.durationSec / cycle)); // quantas cabem c/ respiro
-    const n = Math.min(fotos.length, maxN);
-    const stride = b.durationSec / n;
-    for (let k = 0; k < n; k++) {
-      // centraliza cada foto no seu "slot" do bloco, sem estourar a janela
-      let start = b.startSec + k * stride + (stride - fotoDur) / 2;
-      start = Math.max(b.startSec, Math.min(start, b.startSec + b.durationSec - fotoDur));
-      overlays.push({ src: toUrl(fotos[k].absPath), startSec: +start.toFixed(2), durationSec: fotoDur });
+    const itens = b.itens || [];
+    if (!itens.length || !(b.durationSec > 0)) continue;
+    const temVideo = itens.some((it) => it.isVideo);
+
+    if (!temVideo) {
+      // só fotos: stride uniforme, cada uma centralizada no seu slot do bloco
+      const cycle = fotoDur + gapMin;
+      const maxN = Math.max(1, Math.floor(b.durationSec / cycle));
+      const n = Math.min(itens.length, maxN);
+      const stride = b.durationSec / n;
+      for (let k = 0; k < n; k++) {
+        let start = b.startSec + k * stride + (stride - fotoDur) / 2;
+        start = Math.max(b.startSec, Math.min(start, b.startSec + b.durationSec - fotoDur));
+        overlays.push({ src: toUrl(itens[k].absPath), startSec: +start.toFixed(2), durationSec: fotoDur, type: "photo" });
+      }
+      continue;
+    }
+
+    // sequencial: cada item (foto ou vídeo) na sua própria duração + respiro até o outro
+    let cursor = b.startSec + gapMin / 2;
+    const limit = b.startSec + b.durationSec;
+    for (const it of itens) {
+      const dur = it.isVideo ? videoDur : fotoDur;
+      if (cursor + dur > limit) break; // não cabe mais nenhum nesse bloco
+      overlays.push({ src: toUrl(it.absPath), startSec: +cursor.toFixed(2), durationSec: dur, type: it.isVideo ? "video" : "photo" });
+      cursor += dur + gapMin;
     }
   }
   return overlays;

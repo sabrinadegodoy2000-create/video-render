@@ -115,7 +115,7 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   bigAudio = false,
   showCopyrightWatermark = false,
   watermarkSrc,
-  watermarkOpacity = 0.3,
+  watermarkOpacity = 0.18,
   watermarkTileSize = 220,
   watermarkRotateDeg = -28,
   centerNoticeText,
@@ -199,6 +199,7 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
               backgroundRepeat: "repeat",
               backgroundSize: `${watermarkTileSize}px`,
               opacity: watermarkOpacity,
+              filter: "brightness(0) invert(1)", // recolore o logo pra branco solido, independente da cor original
               transform: `rotate(${watermarkRotateDeg}deg)`,
               transformOrigin: "center",
             }}

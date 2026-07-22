@@ -25,10 +25,10 @@ export type IlMurettoF1BroadcastProps = {
   trackPath?: string;          // traçado SVG do circuito
   showSubscribe?: boolean;     // barra de inscrição em ciclo
   subscribeCycleSec?: number;  // de quanto em quanto tempo a barra reaparece (default 30)
-  showCopyrightWatermark?: boolean; // liga marca d'água (grade) + aviso central — default false, resolve o logo internamente
-  watermarkSrc?: string;       // imagem da marca d'água (default = logo do canal, se showCopyrightWatermark)
+  showCopyrightWatermark?: boolean; // liga marca d'água (grade de texto) + aviso central — default false
+  watermarkText?: string;      // texto repetido na grade (default = nome do canal) — o logo daqui é uma foto/avatar, não dá pra usar como ladrilho
   watermarkOpacity?: number;   // opacidade de cada marca (default 0.18)
-  watermarkTileSize?: number;  // tamanho de cada "ladrilho" em px (default 220)
+  watermarkTileSize?: number;  // largura de cada "ladrilho" de texto em px (default 220)
   watermarkRotateDeg?: number; // rotação da grade (default -28)
   centerNoticeText?: string;   // aviso centralizado por cima da marca d'água (default = frase de copyright, se showCopyrightWatermark)
   watermarkWindows?: { startSec: number; durationSec: number }[]; // se vier, marca d'água+aviso só aparecem nessas janelas (senão, sempre visível)
@@ -111,7 +111,7 @@ export const IlMurettoF1Broadcast: React.FC<IlMurettoF1BroadcastProps> = ({
   showSubscribe = false,
   subscribeCycleSec = 30,
   showCopyrightWatermark = false,
-  watermarkSrc,
+  watermarkText,
   watermarkOpacity = 0.18,
   watermarkTileSize = 220,
   watermarkRotateDeg = -28,
@@ -121,10 +121,8 @@ export const IlMurettoF1Broadcast: React.FC<IlMurettoF1BroadcastProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // resolve o logo default via staticFile() AQUI DENTRO (precisa do runtime do Remotion —
-  // um prep script em Node não consegue montar essa URL, o base muda por bundle/render)
-  const effectiveWatermarkSrc = showCopyrightWatermark ? (watermarkSrc || staticFile("il-muretto-f1-logo.png")) : watermarkSrc;
-  const effectiveNoticeText = showCopyrightWatermark ? (centerNoticeText || "Contenuto protetto da diritti d'autore") : centerNoticeText;
+  const effectiveWatermarkText = showCopyrightWatermark ? (watermarkText || "IL MURETTO F1") : watermarkText;
+  const effectiveNoticeText = showCopyrightWatermark ? (centerNoticeText || "© Tutti i diritti riservati") : centerNoticeText;
   // sem watermarkWindows = sempre visível; com janelas, só aparece dentro delas
   const tSec = frame / fps;
   const inWatermarkWindow = !watermarkWindows || watermarkWindows.some((w) => tSec >= w.startSec && tSec < w.startSec + w.durationSec);
@@ -179,22 +177,34 @@ export const IlMurettoF1Broadcast: React.FC<IlMurettoF1BroadcastProps> = ({
         ) : backgroundSrc ? (
           <Img src={backgroundSrc} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
         ) : null}
-        {/* marca d'água em grade repetida por cima do vídeo/fotos — inset negativo +
-            rotação garantem cobertura total até nos cantos; o overflow:hidden do
-            container pai corta o excesso */}
-        {effectiveWatermarkSrc && inWatermarkWindow ? (
+        {/* marca d'água em grade de TEXTO repetido (o logo do canal é uma foto/avatar,
+            não dá pra usar como ladrilho) — inset negativo + rotação garantem cobertura
+            total até nos cantos; o overflow:hidden do container pai corta o excesso */}
+        {effectiveWatermarkText && inWatermarkWindow ? (
           <div
             style={{
               position: "absolute", inset: "-30%", pointerEvents: "none",
-              backgroundImage: `url(${effectiveWatermarkSrc})`,
-              backgroundRepeat: "repeat",
-              backgroundSize: `${watermarkTileSize}px`,
               opacity: watermarkOpacity,
-              filter: "brightness(0) invert(1)",
               transform: `rotate(${watermarkRotateDeg}deg)`,
               transformOrigin: "center",
+              display: "flex", flexWrap: "wrap", alignContent: "flex-start", overflow: "hidden",
             }}
-          />
+          >
+            {Array.from({ length: 500 }).map((_, i) => (
+              <span
+                key={i}
+                style={{
+                  width: watermarkTileSize * 0.82, flexShrink: 0, textAlign: "center",
+                  padding: `${watermarkTileSize * 0.05}px 0`,
+                  color: "#fff", fontFamily: FONT, fontWeight: 800,
+                  fontSize: watermarkTileSize * 0.13, letterSpacing: 1,
+                  textTransform: "uppercase", whiteSpace: "nowrap",
+                }}
+              >
+                {effectiveWatermarkText}
+              </span>
+            ))}
+          </div>
         ) : null}
         {/* aviso centralizado — por cima da marca d'água */}
         {effectiveNoticeText && inWatermarkWindow ? (
@@ -210,7 +220,7 @@ export const IlMurettoF1Broadcast: React.FC<IlMurettoF1BroadcastProps> = ({
                 fontFamily: FONT, fontWeight: 800, fontSize: 44,
                 color: "#fff", textAlign: "center", lineHeight: 1.15,
                 textTransform: "uppercase", letterSpacing: 1,
-                background: "#D40000",
+                background: "#0D9488", // teal — remete à cor do logo/avatar do canal
                 padding: "30px 32px",
                 transform: "rotate(-12deg)",
               }}

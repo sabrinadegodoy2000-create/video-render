@@ -28,6 +28,7 @@ const SECONDS_PER_ITEM = Number(job.secondsPerItem) > 0 ? Number(job.secondsPerI
 
 const MODE = (String(process.env.MODE || "").toLowerCase()) || "narracao";
 const bigVideoMode = MODE === "bigvideo";
+const narracao2Mode = MODE === "narracao2"; // fundo com marca d'água intercalando com mídias upadas
 
 function resolveMedia(filename, label) {
   if (!filename) throw new Error(`Campo "${label}" vazio`);
@@ -242,9 +243,67 @@ async function fetchStandings(topN = 10) {
 // ── Fonte da duração + montagem do quadro ─────────────────────────
 let totalDuration, audioPath = null, bigVideoPath = null;
 let PHOTO_OVERLAYS = null; // fotos punch-in (modo vídeo de fundo contínuo)
+let watermarkWindows = null; // janelas com marca d'água (modo narração v2)
 const bigSegments = [];
 
-if (bigVideoMode) {
+if (narracao2Mode) {
+  // "Narração v2": UM fundo (imagem ou vídeo) com marca d'água + aviso de copyright,
+  // intercalando em batidas de `SECONDS_PER_ITEM`s com as mídias upadas (sem marca d'água).
+  // Convenção de nome dos arquivos (vem do server.py): "bg_*" = fundo; "altNN_*" = alternadas, em ordem.
+  audioPath = resolveMedia("narration.m4a", "narração");
+  totalDuration = Math.ceil(mediaDuration(audioPath));
+  if (!totalDuration) throw new Error("Não consegui medir a duração da narração (narration.m4a).");
+
+  const files = fs.readdirSync(mediaDir);
+  const bgFile = files.find((f) => f.startsWith("bg_"));
+  if (!bgFile) throw new Error("Narração v2: nenhum arquivo de fundo (bg_*) encontrado.");
+  const bgPath = resolveMedia(bgFile, "fundo");
+  const bgIsVideo = VIDEO_EXTS.has(path.extname(bgPath).toLowerCase());
+  const bgSlices = bgIsVideo ? Math.max(1, Math.floor(mediaDuration(bgPath) / SECONDS_PER_ITEM)) : 1;
+
+  const altItems = files
+    .filter((f) => /^alt\d+_/.test(f))
+    .sort()
+    .map((f) => {
+      const absPath = resolveMedia(f, "mídia alternada");
+      const isVideo = VIDEO_EXTS.has(path.extname(absPath).toLowerCase());
+      // vídeo alternado avança pelas próprias fatias de 3s a cada reaparição (como o fundo) —
+      // só conta fatia CHEIA; se o vídeo tiver menos de 3s no total, usa 1 fatia mesmo assim
+      // (o Remotion trava no último frame pelo tempo que faltar, sem quebrar)
+      const slices = isVideo ? Math.max(1, Math.floor(mediaDuration(absPath) / SECONDS_PER_ITEM)) : 1;
+      return { absPath, isVideo, slices, sliceIdx: 0 };
+    });
+
+  const nBeats = Math.ceil(totalDuration / SECONDS_PER_ITEM);
+  let acc = 0, bgSliceIdx = 0, altIdx = 0;
+  watermarkWindows = [];
+  for (let i = 0; i < nBeats; i++) {
+    const dur = Math.min(SECONDS_PER_ITEM, totalDuration - acc);
+    // fundo, mídia, fundo, mídia... — se não subiu nenhuma alternada, fica só no fundo
+    const isBgBeat = i % 2 === 0 || altItems.length === 0;
+    if (isBgBeat) {
+      if (bgIsVideo) {
+        const startSec = (bgSliceIdx % bgSlices) * SECONDS_PER_ITEM;
+        bgSliceIdx++;
+        bigSegments.push({ src: toFileUrl(bgPath), type: "video", durationSec: dur, startSec });
+      } else {
+        bigSegments.push({ src: toFileUrl(bgPath), type: "photo", durationSec: dur });
+      }
+      watermarkWindows.push({ startSec: +acc.toFixed(2), durationSec: dur });
+    } else {
+      const alt = altItems[altIdx % altItems.length];
+      altIdx++;
+      const seg = { src: toFileUrl(alt.absPath), type: alt.isVideo ? "video" : "photo", durationSec: dur };
+      if (alt.isVideo) {
+        seg.startSec = (alt.sliceIdx % alt.slices) * SECONDS_PER_ITEM;
+        alt.sliceIdx++;
+      }
+      bigSegments.push(seg);
+    }
+    acc += dur;
+  }
+  console.log(`[PREP] Modo NARRAÇÃO V2 — fundo ${bgIsVideo ? "vídeo" : "imagem"} (${path.basename(bgPath)}) + ${altItems.length} mídia(s) alternada(s) — ${totalDuration}s, ${bigSegments.length} batida(s)`);
+} else if (bigVideoMode) {
   const bigFile = process.env.MAIN_VIDEO || job.mainVideo;
   bigVideoPath = resolveMedia(bigFile, "vídeo grande");
   totalDuration = Math.ceil(mediaDuration(bigVideoPath));
@@ -297,7 +356,11 @@ const props = {
 if (headlines.length > 1) props.headlines = headlines;
 if (PHOTO_OVERLAYS && PHOTO_OVERLAYS.length) props.photoOverlays = PHOTO_OVERLAYS;
 
-if (bigVideoMode) {
+if (narracao2Mode) {
+  props.audioSrc = toFileUrl(audioPath);
+  props.showCopyrightWatermark = true;
+  if (watermarkWindows) props.watermarkWindows = watermarkWindows;
+} else if (bigVideoMode) {
   props.bigAudio = true;
 } else {
   props.audioSrc = toFileUrl(audioPath);

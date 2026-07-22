@@ -272,7 +272,12 @@ if (narracao2Mode) {
     .sort()
     .map((f) => {
       const absPath = resolveMedia(f, "mídia alternada");
-      return { absPath, isVideo: VIDEO_EXTS.has(path.extname(absPath).toLowerCase()) };
+      const isVideo = VIDEO_EXTS.has(path.extname(absPath).toLowerCase());
+      // vídeo alternado avança pelas próprias fatias de 3s a cada reaparição (como o fundo) —
+      // só conta fatia CHEIA; se o vídeo tiver menos de 3s no total, usa 1 fatia mesmo assim
+      // (o Remotion trava no último frame pelo tempo que faltar, sem quebrar)
+      const slices = isVideo ? Math.max(1, Math.floor(mediaDuration(absPath) / SECONDS_PER_ITEM)) : 1;
+      return { absPath, isVideo, slices, sliceIdx: 0 };
     });
 
   const nBeats = Math.ceil(totalDuration / SECONDS_PER_ITEM);
@@ -294,7 +299,12 @@ if (narracao2Mode) {
     } else {
       const alt = altItems[altIdx % altItems.length];
       altIdx++;
-      bigSegments.push({ src: toFileUrl(alt.absPath), type: alt.isVideo ? "video" : "photo", durationSec: dur });
+      const seg = { src: toFileUrl(alt.absPath), type: alt.isVideo ? "video" : "photo", durationSec: dur };
+      if (alt.isVideo) {
+        seg.startSec = (alt.sliceIdx % alt.slices) * SECONDS_PER_ITEM;
+        alt.sliceIdx++;
+      }
+      bigSegments.push(seg);
     }
     acc += dur;
   }

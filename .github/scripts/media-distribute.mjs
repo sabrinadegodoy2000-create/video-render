@@ -17,34 +17,35 @@ export function distribuirMidias(pools, totalDuration, spi, toUrl) {
   const videoPools = pools.filter((p) => p.isVideo);
   const photoItems = pools.filter((p) => !p.isVideo).map((p) => ({ absPath: p.absPath, type: "photo" }));
 
-  // stream de vídeo: rodízio entre os vídeos, em ordem de trecho (0s, 3s, 6s...)
-  const videoStream = [];
+  // rodízio entre os vídeos: cada um tem seu PRÓPRIO cursor de fatia (0s, 3s, 6s...),
+  // que só dá a volta quando ELE MESMO esgota as próprias fatias — não quando o grupo
+  // inteiro repete. Assim, se precisar repetir (mídia curta p/ a narração longa), o
+  // rodízio continua de onde parou em vez de "resetar" todo mundo pro início de novo.
   const cur = videoPools.map(() => 0);
-  let restam = videoPools.length > 0;
-  while (restam) {
-    restam = false;
-    videoPools.forEach((p, i) => {
-      if (cur[i] < p.slices.length) {
-        videoStream.push({ absPath: p.absPath, type: "video", startSec: p.slices[cur[i]] });
-        cur[i] += 1;
-        restam = true;
-      }
-    });
-  }
+  let rrIdx = 0;
+  const totalSlices = videoPools.reduce((a, p) => a + p.slices.length, 0);
+  const nextVideoSeg = () => {
+    const i = rrIdx % videoPools.length;
+    const p = videoPools[i];
+    const startSec = p.slices[cur[i] % p.slices.length];
+    cur[i] += 1;
+    rrIdx += 1;
+    return { absPath: p.absPath, type: "video", startSec };
+  };
 
   const S = Math.ceil(totalDuration / spi);
   const stride = photoItems.length ? S / photoItems.length : Infinity;
   const bigSegments = [];
-  let vi = 0, pi = 0, nextPhoto = stride / 2, repetiu = false;
+  let pi = 0, nextPhoto = stride / 2, repetiu = false, videosUsados = 0;
 
   for (let t = 0; t < S; t++) {
     let it;
     if (photoItems.length && t >= nextPhoto) {
       if (pi >= photoItems.length) repetiu = true;
       it = photoItems[pi % photoItems.length]; pi += 1; nextPhoto += stride;
-    } else if (videoStream.length) {
-      if (vi >= videoStream.length) repetiu = true;
-      it = videoStream[vi % videoStream.length]; vi += 1;
+    } else if (videoPools.length) {
+      if (videosUsados >= totalSlices) repetiu = true;
+      it = nextVideoSeg(); videosUsados += 1;
     } else {
       if (pi >= photoItems.length) repetiu = true;
       it = photoItems[pi % photoItems.length]; pi += 1;
@@ -55,7 +56,7 @@ export function distribuirMidias(pools, totalDuration, spi, toUrl) {
     bigSegments.push(seg);
   }
 
-  return { bigSegments, videoStream, photoItems, repetiu };
+  return { bigSegments, repetiu };
 }
 
 /**

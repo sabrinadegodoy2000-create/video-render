@@ -101,10 +101,10 @@ function startMediaServer() {
  */
 function convertFileUrls(obj, mediaBaseUrl) {
   if (typeof obj === 'string') {
-    // file:///path/to/file ou file:///C:/path (Windows)
-    if (obj.startsWith('file:///')) {
-      let filePath = obj.slice(7); // remove "file://"
-      // No Windows, file:///C:/path → C:/path; no Linux file:///opt → /opt (precisa de /)
+    // aceita file:///opt/x (Linux, 3 barras) E file://C:/x (Windows local, 2 barras)
+    if (obj.startsWith('file://')) {
+      let filePath = obj.slice('file://'.length); // remove só "file://"
+      // Linux: file:///opt → "/opt" (mantém a barra). Windows: file://C:/x → "C:/x".
       if (!filePath.startsWith('/') && !filePath.match(/^[A-Za-z]:/)) {
         filePath = '/' + filePath;
       }

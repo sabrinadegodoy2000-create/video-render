@@ -26,6 +26,8 @@ if (!jobFile || !mediaDir || !outFile) {
 
 const job = JSON.parse(fs.readFileSync(jobFile, "utf-8"));
 const SECONDS_PER_ITEM = Number(job.secondsPerItem) > 0 ? Number(job.secondsPerItem) : 3;
+// Mondo Ferrari: cada FOTO fica mais tempo na tela (vídeo continua em trechos de 3s).
+const PHOTO_SECONDS = Number(job.photoSeconds) > 0 ? Number(job.photoSeconds) : 6;
 
 // Modo: normal (PiP) | narracao (áudios) | bigvideo (vídeo único no quadro grande) | narracao2 (fundo com marca d'água + mídias alternando)
 // Retrocompat: FULLSCREEN=true equivale a MODE=narracao.
@@ -114,7 +116,7 @@ function distribuirPorBlocoSeHouver(mediaDir, todasEntradas, totalDuration, outS
         // fotos E vídeos soltos do bloco intercalam por cima do vídeo de fundo
         return { startSec, durationSec, itens: entradasDoBloco(i) };
       });
-      PHOTO_OVERLAYS = agendarPunchOverlay(blocos, toFileUrl);
+      PHOTO_OVERLAYS = agendarPunchOverlay(blocos, toFileUrl, { fotoDur: PHOTO_SECONDS });
       const nFotos = PHOTO_OVERLAYS.filter((o) => o.type !== "video").length;
       const nVideos = PHOTO_OVERLAYS.filter((o) => o.type === "video").length;
       console.log(`[PREP] Vídeo de fundo CONTÍNUO + ${nFotos} foto(s) + ${nVideos} vídeo(s) punch-in (${audios.length} bloco(s), ${sharedVideos.length} vídeo(s) de fundo)`);
@@ -124,7 +126,7 @@ function distribuirPorBlocoSeHouver(mediaDir, todasEntradas, totalDuration, outS
         if (!entradas.length) entradas = todasEntradas; // bloco sem mídia → usa todas
         return { durationSec: durBloco(i), entradas };
       });
-      const dist = distribuirBlocos(blocos, SECONDS_PER_ITEM, toFileUrl, mediaDuration);
+      const dist = distribuirBlocos(blocos, SECONDS_PER_ITEM, toFileUrl, mediaDuration, PHOTO_SECONDS);
       dist.bigSegments.forEach((s) => outSegments.push(s));
       console.log(`[PREP] Distribuição POR BLOCO: ${audios.length} bloco(s) → ${dist.bigSegments.length} segmento(s) cobrindo ${totalDuration}s${dist.repetiu ? " (algum bloco repetiu mídia)" : ""}`);
     }
@@ -387,7 +389,7 @@ if (narracao2Mode) {
       // Vídeos longos → fatiados em trechos de 3s; fotos → pontuação espalhada; vídeo
       // preenche o resto, sem repetir (só repete se a mídia acaba antes do áudio).
       const pools = montarPools(entradas, SECONDS_PER_ITEM, mediaDuration);
-      const dist = distribuirMidias(pools, totalDuration, SECONDS_PER_ITEM, toFileUrl);
+      const dist = distribuirMidias(pools, totalDuration, SECONDS_PER_ITEM, toFileUrl, PHOTO_SECONDS);
       dist.bigSegments.forEach((s) => bigSegments.push(s));
       console.log(`[PREP] ${pools.length} mídia(s) → ${bigSegments.length} segmento(s) cobrindo ${totalDuration}s${dist.repetiu ? " (repetiu: mídia curta p/ o áudio)" : " (sem repetição)"}`);
     }

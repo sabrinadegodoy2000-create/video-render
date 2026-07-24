@@ -9,11 +9,12 @@
  *
  * @param {Array} pools  [{ absPath, isVideo, slices:[startSec...] }]
  * @param {number} totalDuration  duração total (s)
- * @param {number} spi  segundos por trecho
+ * @param {number} spi  segundos por trecho de VÍDEO
  * @param {(p:string)=>string} toUrl  converte caminho absoluto em file:// URL
+ * @param {number} [photoSec]  duração de cada FOTO (default = spi; ex: 6s só pro Mondo Ferrari)
  * @returns {Array} bigSegments  [{ src, type, durationSec, startSec? }]
  */
-export function distribuirMidias(pools, totalDuration, spi, toUrl) {
+export function distribuirMidias(pools, totalDuration, spi, toUrl, photoSec = spi) {
   const videoPools = pools.filter((p) => p.isVideo);
   const photoItems = pools.filter((p) => !p.isVideo).map((p) => ({ absPath: p.absPath, type: "photo" }));
 
@@ -33,27 +34,29 @@ export function distribuirMidias(pools, totalDuration, spi, toUrl) {
     return { absPath: p.absPath, type: "video", startSec };
   };
 
-  const S = Math.ceil(totalDuration / spi);
-  const stride = photoItems.length ? S / photoItems.length : Infinity;
+  // baseado em TEMPO (não em slots fixos): foto e vídeo podem ter durações diferentes.
+  // fotos espalhadas uniformemente ao longo do tempo total.
+  const stride = photoItems.length ? totalDuration / photoItems.length : Infinity;
   const bigSegments = [];
-  let pi = 0, nextPhoto = stride / 2, repetiu = false, videosUsados = 0;
+  let acc = 0, pi = 0, nextPhoto = stride / 2, repetiu = false, videosUsados = 0;
 
-  for (let t = 0; t < S; t++) {
-    let it;
-    if (photoItems.length && t >= nextPhoto) {
+  while (acc < totalDuration - 0.05) {
+    const remaining = totalDuration - acc;
+    let seg;
+    if (photoItems.length && (acc >= nextPhoto || !videoPools.length)) {
       if (pi >= photoItems.length) repetiu = true;
-      it = photoItems[pi % photoItems.length]; pi += 1; nextPhoto += stride;
+      const it = photoItems[pi % photoItems.length]; pi += 1; nextPhoto += stride;
+      seg = { src: toUrl(it.absPath), type: "photo", durationSec: +Math.min(photoSec, remaining).toFixed(2) };
     } else if (videoPools.length) {
       if (videosUsados >= totalSlices) repetiu = true;
-      it = nextVideoSeg(); videosUsados += 1;
+      const it = nextVideoSeg(); videosUsados += 1;
+      seg = { src: toUrl(it.absPath), type: "video", durationSec: +Math.min(spi, remaining).toFixed(2) };
+      if (it.startSec > 0) seg.startSec = it.startSec;
     } else {
-      if (pi >= photoItems.length) repetiu = true;
-      it = photoItems[pi % photoItems.length]; pi += 1;
+      break; // sem foto e sem vídeo — nada a distribuir
     }
-    const remaining = totalDuration - t * spi;
-    const seg = { src: toUrl(it.absPath), type: it.type, durationSec: +Math.min(spi, remaining).toFixed(2) };
-    if (it.type === "video" && it.startSec > 0) seg.startSec = it.startSec;
     bigSegments.push(seg);
+    acc += seg.durationSec;
   }
 
   return { bigSegments, repetiu };
@@ -69,13 +72,13 @@ export function distribuirMidias(pools, totalDuration, spi, toUrl) {
  * @param {(p:string)=>number} mediaDuration
  * @returns {{bigSegments:Array, repetiu:boolean}}
  */
-export function distribuirBlocos(blocos, spi, toUrl, mediaDuration) {
+export function distribuirBlocos(blocos, spi, toUrl, mediaDuration, photoSec = spi) {
   const bigSegments = [];
   let repetiu = false;
   for (const b of blocos) {
     if (!b || !(b.durationSec > 0) || !b.entradas || !b.entradas.length) continue;
     const pools = montarPools(b.entradas, spi, mediaDuration);
-    const dist = distribuirMidias(pools, b.durationSec, spi, toUrl);
+    const dist = distribuirMidias(pools, b.durationSec, spi, toUrl, photoSec);
     dist.bigSegments.forEach((s) => bigSegments.push(s));
     if (dist.repetiu) repetiu = true;
   }

@@ -26,6 +26,7 @@ const SECONDS_PER_ITEM = Number(job.secondsPerItem) > 0 ? Number(job.secondsPerI
 
 const MODE = (String(process.env.MODE || "").toLowerCase()) || "narracao";
 const bigVideoMode = MODE === "bigvideo";
+const referenciaMode = MODE === "referencia"; // timeline explícita (manifest) do fluxo "refazer de referência"
 
 function resolveMedia(filename, label) {
   if (!filename) throw new Error(`Campo "${label}" vazio`);
@@ -59,7 +60,30 @@ let totalDuration, audioPath = null, bigVideoPath = null;
 let PHOTO_OVERLAYS = null; // fotos punch-in (modo vídeo de fundo contínuo)
 const bigSegments = [];
 
-if (bigVideoMode) {
+if (referenciaMode) {
+  // "Refazer de referência": a timeline vem PRONTA num manifest (referencia-manifest.json),
+  // montado pelo painel. Cada item já traz src/tipo/duração e, pros trechos NÃO trocados, o
+  // startSec (fatia do vídeo de referência fonte.mp4). A narração manda na duração.
+  audioPath = resolveMedia("narration.m4a", "narração");
+  totalDuration = Math.ceil(mediaDuration(audioPath));
+  if (!totalDuration) throw new Error("Não consegui medir a duração da narração (narration.m4a).");
+
+  const manifestPath = path.join(mediaDir, "referencia-manifest.json");
+  if (!fs.existsSync(manifestPath)) throw new Error("Modo referência: referencia-manifest.json não encontrado.");
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+  const itens = Array.isArray(manifest.segments) ? manifest.segments : [];
+  if (!itens.length) throw new Error("Modo referência: manifest sem segmentos.");
+
+  for (const it of itens) {
+    const absPath = resolveMedia(it.src, `segmento ${it.src}`);
+    const isVideo = (it.type === "video") || VIDEO_EXTS.has(path.extname(absPath).toLowerCase());
+    const seg = { src: toFileUrl(absPath), type: isVideo ? "video" : "photo", durationSec: Number(it.durationSec) || SECONDS_PER_ITEM };
+    if (isVideo && Number(it.startSec) > 0) seg.startSec = Number(it.startSec);
+    bigSegments.push(seg);
+  }
+  const somaVisual = bigSegments.reduce((a, s) => a + s.durationSec, 0);
+  console.log(`[PREP] Modo REFERÊNCIA — ${bigSegments.length} segmento(s), visual ${somaVisual.toFixed(1)}s, narração ${totalDuration}s`);
+} else if (bigVideoMode) {
   // vídeo único em tela cheia (com áudio); duração = a dele
   const bigFile = process.env.MAIN_VIDEO || job.mainVideo;
   bigVideoPath = resolveMedia(bigFile, "vídeo grande");
@@ -194,7 +218,9 @@ const props = {
 if (headlines.length > 1) props.headlines = headlines;
 if (PHOTO_OVERLAYS && PHOTO_OVERLAYS.length) props.photoOverlays = PHOTO_OVERLAYS;
 
-if (bigVideoMode) {
+if (referenciaMode) {
+  props.audioSrc = toFileUrl(audioPath);
+} else if (bigVideoMode) {
   props.bigAudio = true;
 } else {
   props.audioSrc = toFileUrl(audioPath);

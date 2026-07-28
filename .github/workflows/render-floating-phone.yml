@@ -41,7 +41,7 @@ on:
         default: "false"
         type: string
       mode:
-        description: "Modo: normal | narracao | bigvideo | narracao2"
+        description: "Modo: normal | narracao | bigvideo | narracao2 | referencia"
         required: false
         default: "normal"
         type: string
@@ -120,7 +120,7 @@ jobs:
           echo "Normalização concluída."
 
       - name: Concatenar áudios da narração
-        if: ${{ inputs.mode == 'narracao' || inputs.mode == 'narracao2' || inputs.fullscreen == 'true' }}
+        if: ${{ inputs.mode == 'narracao' || inputs.mode == 'narracao2' || inputs.mode == 'referencia' || inputs.fullscreen == 'true' }}
         run: |
           cd render-media
           files=$(ls audio-* 2>/dev/null | sort)

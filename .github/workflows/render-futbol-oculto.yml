@@ -31,7 +31,7 @@ on:
         default: ""
         type: string
       mode:
-        description: "Modo: narracao | bigvideo"
+        description: "Modo: narracao | bigvideo | referencia"
         required: false
         default: "narracao"
         type: string

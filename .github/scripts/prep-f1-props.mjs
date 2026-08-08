@@ -129,6 +129,15 @@ function distribuirPorBlocoSeHouver(mediaDir, todasEntradas, totalDuration, outS
       const nFotos = PHOTO_OVERLAYS.filter((o) => o.type !== "video").length;
       const nVideos = PHOTO_OVERLAYS.filter((o) => o.type === "video").length;
       console.log(`[PREP] Vídeo de fundo CONTÍNUO + ${nFotos} foto(s) + ${nVideos} vídeo(s) punch-in (${audios.length} bloco(s), ${sharedVideos.length} vídeo(s) de fundo)`);
+
+      // Marca d'água no vídeo de fundo compartilhado (opcional, vem do painel: prefixo
+      // "shared_wm_" em vez de "shared_"). Só aparece nas janelas em que o fundo está
+      // de fato visível — nunca por cima das mídias da biblioteca que "furam" na frente.
+      sharedVideoWatermark = sharedVideos.some((f) => /^shared_wm_/i.test(f));
+      if (sharedVideoWatermark) {
+        watermarkWindows = janelasSemOverlay(totalDuration, PHOTO_OVERLAYS);
+        console.log(`[PREP] Marca d'água no vídeo de fundo: ${watermarkWindows.length} janela(s) visível(is)`);
+      }
     } else {
       const blocos = audios.map((_, i) => {
         let entradas = entradasDoBloco(i);
@@ -260,7 +269,22 @@ async function fetchStandings(topN = 10) {
 // ── Fonte da duração + montagem do quadro grande ─────────────────
 let totalDuration, pipPath = null, audioPath = null, pipFile = "", bigVideoPath = null;
 let PHOTO_OVERLAYS = null; // fotos punch-in (modo vídeo de fundo contínuo)
-let watermarkWindows = null; // janelas com marca d'água (modo narração v2)
+let watermarkWindows = null; // janelas com marca d'água (modo narração v2, ou vídeo de fundo compartilhado com marca)
+let sharedVideoWatermark = false; // vídeo de fundo compartilhado (modo bloco) pediu marca d'água
+
+// Complemento das janelas de overlay dentro de [0, totalDuration]: os trechos em que o
+// vídeo de fundo contínuo fica DE FATO visível (sem nenhuma mídia por cima tapando).
+function janelasSemOverlay(totalDuration, overlays) {
+  const ordenados = [...overlays].sort((a, b) => a.startSec - b.startSec);
+  const janelas = [];
+  let cursor = 0;
+  for (const o of ordenados) {
+    if (o.startSec > cursor) janelas.push({ startSec: +cursor.toFixed(2), durationSec: +(o.startSec - cursor).toFixed(2) });
+    cursor = Math.max(cursor, o.startSec + o.durationSec);
+  }
+  if (cursor < totalDuration) janelas.push({ startSec: +cursor.toFixed(2), durationSec: +(totalDuration - cursor).toFixed(2) });
+  return janelas.filter((j) => j.durationSec > 0.05);
+}
 const bigSegments = [];
 
 if (referenciaMode) {
@@ -466,6 +490,10 @@ if (referenciaMode) {
   props.fullscreenMode = true;
   props.audioSrc = toFileUrl(audioPath);
   props.showEndExpand = false;
+  if (sharedVideoWatermark) {
+    props.showCopyrightWatermark = true;
+    if (watermarkWindows) props.watermarkWindows = watermarkWindows;
+  }
 } else {
   props.pipVideoSrc = toFileUrl(pipPath);
   props.showEndExpand = showEndExpand;

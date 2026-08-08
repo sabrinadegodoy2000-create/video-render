@@ -68,7 +68,8 @@ const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"]);
 // Mídia vinda da media_library (escolhida pela IA no painel) sai nomeada "bNN_lib_..." ou
 // "bNN_geral_..." — nunca leva o fx de espelho/blur (não é "material reaproveitado"
 // descaracterizado, é do acervo próprio do canal).
-const LIB_MEDIA_RE = /^b\d+_(lib|geral)_/i;
+// "pNN_" é opcional — arquivo escolhido por PARÁGRAFO leva bNN_pNN_lib_..., por bloco inteiro leva bNN_lib_...
+const LIB_MEDIA_RE = /^b\d+_(p\d+_)?(lib|geral)_/i;
 
 function parseHeadlines(raw) {
   if (!raw) return [];
@@ -93,6 +94,10 @@ function distribuirPorBlocoSeHouver(mediaDir, todasEntradas, totalDuration, outS
     const bj = JSON.parse(fs.readFileSync(blocksFile, "utf-8"));
     const blocksMedia = Array.isArray(bj.blocks) ? bj.blocks : [];
     const sharedVideos = Array.isArray(bj.sharedVideos) ? bj.sharedVideos : [];
+    // Mídia por PARÁGRAFO (opcional): { "0": [{palavras, arquivos:[...]}, ...], ... } — um bloco
+    // de vários parágrafos pode falar de coisas diferentes; cada parágrafo vira uma fatia de
+    // tempo dentro do bloco, proporcional ao peso em palavras (não temos o timestamp exato).
+    const paragraphsMap = (bj.paragraphs && typeof bj.paragraphs === "object") ? bj.paragraphs : {};
     const audios = fs.readdirSync(mediaDir)
       .filter((f) => /^audio-\d+\.(mp3|m4a|wav|aac)$/i.test(f))
       .sort();
@@ -139,14 +144,31 @@ function distribuirPorBlocoSeHouver(mediaDir, todasEntradas, totalDuration, outS
         console.log(`[PREP] Marca d'água no vídeo de fundo: ${watermarkWindows.length} janela(s) visível(is)`);
       }
     } else {
-      const blocos = audios.map((_, i) => {
+      // Bloco com "paragraphs" no manifest vira VÁRIAS janelas menores (uma por parágrafo,
+      // com duração proporcional ao peso em palavras); bloco sem isso continua 1 janela só,
+      // igual antes. distribuirBlocos() não faz distinção — só recebe uma lista de janelas.
+      const blocos = audios.flatMap((_, i) => {
+        const paragrafos = paragraphsMap[String(i)];
+        if (Array.isArray(paragrafos) && paragrafos.length) {
+          const totalPalavras = paragrafos.reduce((a, p) => a + (Number(p.palavras) || 1), 0) || 1;
+          return paragrafos.map((p) => {
+            const arquivos = Array.isArray(p.arquivos) ? p.arquivos : [];
+            let entradas = arquivos.map((f) => {
+              const absPath = resolveMedia(f, `bloco ${i + 1} (parágrafo)`);
+              return { absPath, isVideo: VIDEO_EXTS.has(path.extname(absPath).toLowerCase()), noFx: LIB_MEDIA_RE.test(f) };
+            });
+            if (!entradas.length) entradas = todasEntradas; // parágrafo sem mídia → usa todas
+            return { durationSec: durBloco(i) * (Number(p.palavras) || 1) / totalPalavras, entradas };
+          });
+        }
         let entradas = entradasDoBloco(i);
         if (!entradas.length) entradas = todasEntradas; // bloco sem mídia → usa todas
-        return { durationSec: durBloco(i), entradas };
+        return [{ durationSec: durBloco(i), entradas }];
       });
       const dist = distribuirBlocos(blocos, SECONDS_PER_ITEM, toFileUrl, mediaDuration, PHOTO_SECONDS);
       dist.bigSegments.forEach((s) => outSegments.push(s));
-      console.log(`[PREP] Distribuição POR BLOCO: ${audios.length} bloco(s) → ${dist.bigSegments.length} segmento(s) cobrindo ${totalDuration}s${dist.repetiu ? " (algum bloco repetiu mídia)" : ""}`);
+      const nParagrafos = Object.keys(paragraphsMap).length;
+      console.log(`[PREP] Distribuição POR BLOCO${nParagrafos ? "/PARÁGRAFO" : ""}: ${audios.length} bloco(s) (${blocos.length} janela(s)) → ${dist.bigSegments.length} segmento(s) cobrindo ${totalDuration}s${dist.repetiu ? " (algum trecho repetiu mídia)" : ""}`);
     }
     return true;
   } catch (e) {

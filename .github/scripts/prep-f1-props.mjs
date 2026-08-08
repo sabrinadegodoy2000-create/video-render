@@ -123,12 +123,29 @@ function distribuirPorBlocoSeHouver(mediaDir, todasEntradas, totalDuration, outS
       const videoPools = montarPools(videoEntradas, SECONDS_PER_ITEM, mediaDuration);
       const base = distribuirMidias(videoPools, totalDuration, SECONDS_PER_ITEM, toFileUrl);
       base.bigSegments.forEach((s) => outSegments.push(s));
-      // FOTOS: punch-in em tela cheia por cima, dentro da janela de cada bloco
+      // FOTOS: punch-in em tela cheia por cima, dentro da janela de cada bloco (ou, se o
+      // bloco tiver "paragraphs", dentro da fatia proporcional de CADA parágrafo — mesma
+      // lógica de divisão usada no modo sem vídeo de fundo, só que alimentando o punch-in).
       let acc = 0;
-      const blocos = audios.map((_, i) => {
-        const startSec = acc; const durationSec = durBloco(i); acc += durationSec;
+      const blocos = audios.flatMap((_, i) => {
+        const durTotal = durBloco(i);
+        const paragrafos = paragraphsMap[String(i)];
+        if (Array.isArray(paragrafos) && paragrafos.length) {
+          const totalPalavras = paragrafos.reduce((a, p) => a + (Number(p.palavras) || 1), 0) || 1;
+          return paragrafos.map((p) => {
+            const durationSec = durTotal * (Number(p.palavras) || 1) / totalPalavras;
+            const startSec = acc; acc += durationSec;
+            const arquivos = Array.isArray(p.arquivos) ? p.arquivos : [];
+            const itens = arquivos.map((f) => {
+              const absPath = resolveMedia(f, `bloco ${i + 1} (parágrafo)`);
+              return { absPath, isVideo: VIDEO_EXTS.has(path.extname(absPath).toLowerCase()) };
+            });
+            return { startSec, durationSec, itens };
+          });
+        }
+        const startSec = acc; const durationSec = durTotal; acc += durationSec;
         // fotos E vídeos soltos do bloco intercalam por cima do vídeo de fundo
-        return { startSec, durationSec, itens: entradasDoBloco(i) };
+        return [{ startSec, durationSec, itens: entradasDoBloco(i) }];
       });
       PHOTO_OVERLAYS = agendarPunchOverlay(blocos, toFileUrl, { fotoDur: PHOTO_SECONDS });
       const nFotos = PHOTO_OVERLAYS.filter((o) => o.type !== "video").length;

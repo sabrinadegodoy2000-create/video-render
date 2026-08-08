@@ -7,16 +7,16 @@
  * - O vídeo preenche o resto, em sequência (rodízio entre vídeos), SEM repetir trecho.
  * - Só repete quando os trechos/fotos acabam antes do áudio (mídia pouca p/ narração longa).
  *
- * @param {Array} pools  [{ absPath, isVideo, slices:[startSec...] }]
+ * @param {Array} pools  [{ absPath, isVideo, slices:[startSec...], noFx? }]
  * @param {number} totalDuration  duração total (s)
  * @param {number} spi  segundos por trecho de VÍDEO
  * @param {(p:string)=>string} toUrl  converte caminho absoluto em file:// URL
  * @param {number} [photoSec]  duração de cada FOTO (default = spi; ex: 6s só pro Mondo Ferrari)
- * @returns {Array} bigSegments  [{ src, type, durationSec, startSec? }]
+ * @returns {Array} bigSegments  [{ src, type, durationSec, startSec?, noFx? }]
  */
 export function distribuirMidias(pools, totalDuration, spi, toUrl, photoSec = spi) {
   const videoPools = pools.filter((p) => p.isVideo);
-  const photoItems = pools.filter((p) => !p.isVideo).map((p) => ({ absPath: p.absPath, type: "photo" }));
+  const photoItems = pools.filter((p) => !p.isVideo).map((p) => ({ absPath: p.absPath, type: "photo", noFx: p.noFx }));
 
   // rodízio entre os vídeos: cada um tem seu PRÓPRIO cursor de fatia (0s, 3s, 6s...),
   // que só dá a volta quando ELE MESMO esgota as próprias fatias — não quando o grupo
@@ -31,7 +31,7 @@ export function distribuirMidias(pools, totalDuration, spi, toUrl, photoSec = sp
     const startSec = p.slices[cur[i] % p.slices.length];
     cur[i] += 1;
     rrIdx += 1;
-    return { absPath: p.absPath, type: "video", startSec };
+    return { absPath: p.absPath, type: "video", startSec, noFx: p.noFx };
   };
 
   // baseado em TEMPO (não em slots fixos): foto e vídeo podem ter durações diferentes.
@@ -42,19 +42,20 @@ export function distribuirMidias(pools, totalDuration, spi, toUrl, photoSec = sp
 
   while (acc < totalDuration - 0.05) {
     const remaining = totalDuration - acc;
-    let seg;
+    let seg, it;
     if (photoItems.length && (acc >= nextPhoto || !videoPools.length)) {
       if (pi >= photoItems.length) repetiu = true;
-      const it = photoItems[pi % photoItems.length]; pi += 1; nextPhoto += stride;
+      it = photoItems[pi % photoItems.length]; pi += 1; nextPhoto += stride;
       seg = { src: toUrl(it.absPath), type: "photo", durationSec: +Math.min(photoSec, remaining).toFixed(2) };
     } else if (videoPools.length) {
       if (videosUsados >= totalSlices) repetiu = true;
-      const it = nextVideoSeg(); videosUsados += 1;
+      it = nextVideoSeg(); videosUsados += 1;
       seg = { src: toUrl(it.absPath), type: "video", durationSec: +Math.min(spi, remaining).toFixed(2) };
       if (it.startSec > 0) seg.startSec = it.startSec;
     } else {
       break; // sem foto e sem vídeo — nada a distribuir
     }
+    if (it.noFx) seg.noFx = true; // mídia da biblioteca (media_library) — nunca espelha/borra
     bigSegments.push(seg);
     acc += seg.durationSec;
   }
@@ -133,15 +134,15 @@ export function agendarPunchOverlay(blocos, toUrl, { fotoDur = 3, videoDur = 5.5
   return overlays;
 }
 
-/** Monta os "pools" (trechos por mídia). entradas: [{ absPath, isVideo }]. */
+/** Monta os "pools" (trechos por mídia). entradas: [{ absPath, isVideo, noFx? }]. */
 export function montarPools(entradas, spi, mediaDuration) {
-  return entradas.map(({ absPath, isVideo }) => {
+  return entradas.map(({ absPath, isVideo, noFx }) => {
     let slices = [0];
     if (isVideo) {
       const dur = mediaDuration(absPath);
       const n = Math.max(1, Math.floor(dur / spi));
       slices = Array.from({ length: n }, (_, i) => +(i * spi).toFixed(2));
     }
-    return { absPath, isVideo, slices };
+    return { absPath, isVideo, slices, noFx };
   });
 }

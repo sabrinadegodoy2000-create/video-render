@@ -6,7 +6,7 @@ import { pickHeadline, hasHeadlineContent, HeadlineItem } from "./rotatingHeadli
 import { PhotoPunchOverlays, PhotoOverlayItem } from "./PhotoPunchOverlay";
 import { resolveStandings } from "./f1TeamStyles";
 
-export type F1Segment = { src: string; type: "photo" | "video"; durationSec: number; startSec?: number };
+export type F1Segment = { src: string; type: "photo" | "video"; durationSec: number; startSec?: number; noFx?: boolean };
 
 export type Driver = { name: string; photoSrc?: string };
 
@@ -182,8 +182,10 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
               return (
                 <Sequence key={i} from={start} durationInFrames={dur} layout="none">
                   {/* fx (espelho+blur) descaracteriza material reaproveitado; no modo
-                      vídeo grande (bigAudio) o vídeo é o destaque → deixa limpo */}
-                  <BlurFillMedia src={seg.src} isVideo={seg.type === "video"} muted={!bigAudio} trimBefore={seg.startSec ? Math.round(seg.startSec * fps) : undefined} fx={!bigAudio} />
+                      vídeo grande (bigAudio) o vídeo é o destaque → deixa limpo.
+                      Mídia vinda da media_library (seg.noFx) nunca leva o fx — é acervo
+                      próprio do canal, não material de terceiros a descaracterizar. */}
+                  <BlurFillMedia src={seg.src} isVideo={seg.type === "video"} muted={!bigAudio} trimBefore={seg.startSec ? Math.round(seg.startSec * fps) : undefined} fx={!bigAudio && !seg.noFx} />
                 </Sequence>
               );
             })}

@@ -65,6 +65,10 @@ function mediaDuration(absPath) {
 
 const VIDEO_EXTS = new Set([".mp4", ".mov", ".mkv", ".webm", ".avi"]);
 const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"]);
+// Mídia vinda da media_library (escolhida pela IA no painel) sai nomeada "bNN_lib_..." ou
+// "bNN_geral_..." — nunca leva o fx de espelho/blur (não é "material reaproveitado"
+// descaracterizado, é do acervo próprio do canal).
+const LIB_MEDIA_RE = /^b\d+_(lib|geral)_/i;
 
 function parseHeadlines(raw) {
   if (!raw) return [];
@@ -101,7 +105,11 @@ function distribuirPorBlocoSeHouver(mediaDir, todasEntradas, totalDuration, outS
     const entradasDoBloco = (i) =>
       (Array.isArray(blocksMedia[i]) ? blocksMedia[i] : []).map((f) => {
         const absPath = resolveMedia(f, `bloco ${i + 1}`);
-        return { absPath, isVideo: VIDEO_EXTS.has(path.extname(absPath).toLowerCase()) };
+        return {
+          absPath,
+          isVideo: VIDEO_EXTS.has(path.extname(absPath).toLowerCase()),
+          noFx: LIB_MEDIA_RE.test(f),
+        };
       });
 
     if (sharedVideos.length) {
@@ -377,7 +385,7 @@ if (referenciaMode) {
     const absPath = resolveMedia(filename, `wide[${i}]`);
     const ext = path.extname(absPath).toLowerCase();
     const isVideo = (typeof entry === "object" && entry.type === "video") || VIDEO_EXTS.has(ext);
-    return { absPath, type: isVideo ? "video" : "photo" };
+    return { absPath, type: isVideo ? "video" : "photo", noFx: LIB_MEDIA_RE.test(filename) };
   });
 
   // ── Cue sheet SEMÂNTICO (se houver transcrição + tags das mídias) ──
@@ -406,7 +414,7 @@ if (referenciaMode) {
   }
 
   if (!usedSemantic) {
-    const entradas = base.map((s) => ({ absPath: s.absPath, isVideo: s.type === "video" }));
+    const entradas = base.map((s) => ({ absPath: s.absPath, isVideo: s.type === "video", noFx: s.noFx }));
     // Distribuição POR BLOCO (só no modo narração, se veio blocks.json do painel).
     const usedBlocks = fullscreen && distribuirPorBlocoSeHouver(mediaDir, entradas, totalDuration, bigSegments);
     if (!usedBlocks) {

@@ -12,25 +12,36 @@
  * @param {number} spi  segundos por trecho de VÍDEO
  * @param {(p:string)=>string} toUrl  converte caminho absoluto em file:// URL
  * @param {number} [photoSec]  duração de cada FOTO (default = spi; ex: 6s só pro Mondo Ferrari)
+ * @param {{pi:number, videosUsados:number, cur:number[], rrIdx:number}} [state]  cursor
+ *   persistido entre chamadas (ver distribuirBlocos) — sem isso, cada chamada recomeça do
+ *   arquivo 0 (comportamento de sempre pra quem não precisa continuar de onde parou).
  * @returns {Array} bigSegments  [{ src, type, durationSec, startSec?, noFx? }]
  */
-export function distribuirMidias(pools, totalDuration, spi, toUrl, photoSec = spi) {
+export function distribuirMidias(pools, totalDuration, spi, toUrl, photoSec = spi, state = null) {
   const videoPools = pools.filter((p) => p.isVideo);
   const photoItems = pools.filter((p) => !p.isVideo).map((p) => ({ absPath: p.absPath, type: "photo", noFx: p.noFx }));
+
+  // `state` (opcional) deixa os cursores continuarem de onde pararam numa chamada anterior
+  // com o MESMO pool — ex: vários parágrafos que usam a mesma pasta da biblioteca. Sem ele,
+  // cada chamada é independente (comportamento original).
+  const st = state || {};
+  if (!Array.isArray(st.cur) || st.cur.length !== videoPools.length) st.cur = videoPools.map(() => 0);
+  if (!(st.rrIdx >= 0)) st.rrIdx = 0;
+  if (!(st.pi >= 0)) st.pi = 0;
+  if (!(st.videosUsados >= 0)) st.videosUsados = 0;
 
   // rodízio entre os vídeos: cada um tem seu PRÓPRIO cursor de fatia (0s, 3s, 6s...),
   // que só dá a volta quando ELE MESMO esgota as próprias fatias — não quando o grupo
   // inteiro repete. Assim, se precisar repetir (mídia curta p/ a narração longa), o
   // rodízio continua de onde parou em vez de "resetar" todo mundo pro início de novo.
-  const cur = videoPools.map(() => 0);
-  let rrIdx = 0;
+  const cur = st.cur;
   const totalSlices = videoPools.reduce((a, p) => a + p.slices.length, 0);
   const nextVideoSeg = () => {
-    const i = rrIdx % videoPools.length;
+    const i = st.rrIdx % videoPools.length;
     const p = videoPools[i];
     const startSec = p.slices[cur[i] % p.slices.length];
     cur[i] += 1;
-    rrIdx += 1;
+    st.rrIdx += 1;
     return { absPath: p.absPath, type: "video", startSec, noFx: p.noFx };
   };
 
@@ -38,18 +49,18 @@ export function distribuirMidias(pools, totalDuration, spi, toUrl, photoSec = sp
   // fotos espalhadas uniformemente ao longo do tempo total.
   const stride = photoItems.length ? totalDuration / photoItems.length : Infinity;
   const bigSegments = [];
-  let acc = 0, pi = 0, nextPhoto = stride / 2, repetiu = false, videosUsados = 0;
+  let acc = 0, nextPhoto = stride / 2, repetiu = false;
 
   while (acc < totalDuration - 0.05) {
     const remaining = totalDuration - acc;
     let seg, it;
     if (photoItems.length && (acc >= nextPhoto || !videoPools.length)) {
-      if (pi >= photoItems.length) repetiu = true;
-      it = photoItems[pi % photoItems.length]; pi += 1; nextPhoto += stride;
+      if (st.pi >= photoItems.length) repetiu = true;
+      it = photoItems[st.pi % photoItems.length]; st.pi += 1; nextPhoto += stride;
       seg = { src: toUrl(it.absPath), type: "photo", durationSec: +Math.min(photoSec, remaining).toFixed(2) };
     } else if (videoPools.length) {
-      if (videosUsados >= totalSlices) repetiu = true;
-      it = nextVideoSeg(); videosUsados += 1;
+      if (st.videosUsados >= totalSlices) repetiu = true;
+      it = nextVideoSeg(); st.videosUsados += 1;
       seg = { src: toUrl(it.absPath), type: "video", durationSec: +Math.min(spi, remaining).toFixed(2) };
       if (it.startSec > 0) seg.startSec = it.startSec;
     } else {
@@ -67,7 +78,7 @@ export function distribuirMidias(pools, totalDuration, spi, toUrl, photoSec = sp
  * Distribui mídias respeitando os limites de cada bloco da narração.
  * Cada bloco cobre a janela do seu áudio; a mídia do bloco só toca nessa janela.
  *
- * @param {Array} blocos  [{ durationSec, entradas:[{absPath,isVideo}] }]
+ * @param {Array} blocos  [{ durationSec, entradas:[{absPath,isVideo}], pasta?:string }]
  * @param {number} spi  segundos por trecho
  * @param {(p:string)=>string} toUrl
  * @param {(p:string)=>number} mediaDuration
@@ -76,10 +87,19 @@ export function distribuirMidias(pools, totalDuration, spi, toUrl, photoSec = sp
 export function distribuirBlocos(blocos, spi, toUrl, mediaDuration, photoSec = spi) {
   const bigSegments = [];
   let repetiu = false;
+  // janelas (parágrafos) com a MESMA `pasta` da biblioteca compartilham o cursor — assim
+  // a 2ª vez que "Charles Leclerc" aparece continua de onde a 1ª parou, em vez de repetir
+  // os mesmos arquivos do início; só repete de fato quando a pasta inteira já foi mostrada.
+  const estadoPorPasta = new Map();
   for (const b of blocos) {
     if (!b || !(b.durationSec > 0) || !b.entradas || !b.entradas.length) continue;
     const pools = montarPools(b.entradas, spi, mediaDuration);
-    const dist = distribuirMidias(pools, b.durationSec, spi, toUrl, photoSec);
+    let state = null;
+    if (b.pasta) {
+      if (!estadoPorPasta.has(b.pasta)) estadoPorPasta.set(b.pasta, {});
+      state = estadoPorPasta.get(b.pasta);
+    }
+    const dist = distribuirMidias(pools, b.durationSec, spi, toUrl, photoSec, state);
     dist.bigSegments.forEach((s) => bigSegments.push(s));
     if (dist.repetiu) repetiu = true;
   }

@@ -174,8 +174,11 @@ function distribuirPorBlocoSeHouver(mediaDir, todasEntradas, totalDuration, outS
               const absPath = resolveMedia(f, `bloco ${i + 1} (parágrafo)`);
               return { absPath, isVideo: VIDEO_EXTS.has(path.extname(absPath).toLowerCase()), noFx: LIB_MEDIA_RE.test(f) };
             });
+            // sem mídia própria → cai no pool geral, sem identidade de pasta (não entra no
+            // agrupamento de "não repetir" abaixo, que só faz sentido pra pasta específica)
+            const pasta = entradas.length ? (p.pasta || null) : null;
             if (!entradas.length) entradas = todasEntradas; // parágrafo sem mídia → usa todas
-            return { durationSec: durBloco(i) * (Number(p.palavras) || 1) / totalPalavras, entradas };
+            return { durationSec: durBloco(i) * (Number(p.palavras) || 1) / totalPalavras, entradas, pasta };
           });
         }
         let entradas = entradasDoBloco(i);

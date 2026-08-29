@@ -173,7 +173,8 @@ jobs:
             --props ../props.json \
             --output ../floating-phone-output.mp4 \
             --composition F1Broadcast \
-            --concurrency ${{ inputs.concurrency }}
+            --concurrency ${{ inputs.concurrency }} \
+            --scale 2
 
       - name: Enviar o vídeo final de volta ao Release
         env:

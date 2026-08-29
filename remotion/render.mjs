@@ -18,9 +18,10 @@ const propsIdx = args.indexOf("--props");
 const outputIdx = args.indexOf("--output");
 const concurrencyIdx = args.indexOf("--concurrency");
 const compositionIdx = args.indexOf("--composition");
+const scaleIdx = args.indexOf("--scale");
 
 if (propsIdx === -1 || outputIdx === -1) {
-  console.error("Uso: node render.mjs --props <plan.json> --output <output.mp4> [--composition DynamicVideo] [--concurrency 2]");
+  console.error("Uso: node render.mjs --props <plan.json> --output <output.mp4> [--composition DynamicVideo] [--concurrency 2] [--scale 1]");
   process.exit(1);
 }
 
@@ -28,6 +29,8 @@ const propsFile = args[propsIdx + 1];
 const outputFile = args[outputIdx + 1];
 const concurrency = concurrencyIdx !== -1 ? parseInt(args[concurrencyIdx + 1]) : 2;
 const compositionId = compositionIdx !== -1 ? args[compositionIdx + 1] : "DynamicVideo";
+// multiplicador de densidade de pixel do Remotion (2 = renderiza em 4K real, mesmo layout em CSS)
+const scale = scaleIdx !== -1 ? parseFloat(args[scaleIdx + 1]) : 1;
 
 // ── Servidor de mídia local ─────────────────────────────────────────
 // Serve arquivos locais via HTTP para que o Chrome possa carregá-los
@@ -149,7 +152,7 @@ async function main() {
     inputProps,
   });
 
-  console.log(`[REMOTION] Renderizando ${composition.durationInFrames} frames (${composition.fps}fps)...`);
+  console.log(`[REMOTION] Renderizando ${composition.durationInFrames} frames (${composition.fps}fps, scale=${scale})...`);
   const startTime = Date.now();
 
   const browserExecutable = process.env.REMOTION_CHROME_EXECUTABLE_PATH || undefined;
@@ -165,6 +168,7 @@ async function main() {
     outputLocation: outputFile,
     inputProps,
     concurrency,
+    scale,
     timeoutInMilliseconds: 90000,
     chromiumOptions: {
       args: ["--no-sandbox", "--disable-setuid-sandbox"],

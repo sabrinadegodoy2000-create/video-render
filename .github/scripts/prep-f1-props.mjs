@@ -313,6 +313,48 @@ let totalDuration, pipPath = null, audioPath = null, pipFile = "", bigVideoPath 
 let PHOTO_OVERLAYS = null; // fotos punch-in (modo vídeo de fundo contínuo)
 let watermarkWindows = null; // janelas com marca d'água (modo narração v2, ou vídeo de fundo compartilhado com marca)
 let sharedVideoWatermark = false; // vídeo de fundo compartilhado (modo bloco) pediu marca d'água
+let PIP_SEGMENTS = null; // janelas do PiP do apresentador (modo narração, blocos de vídeo)
+
+// PiP do apresentador (modo narração): alguns blocos da fila são vídeo em vez de texto —
+// o painel manda um pip-blocks.json (índice do bloco → arquivo) junto dos audio-NNN de
+// sempre. Cada bloco de vídeo vira uma janela do PiP na faixa lateral, na posição exata
+// (startSec) que esse bloco ocupa dentro da narração concatenada. Independente de
+// block.json/media_library — funciona mesmo na distribuição global mais simples.
+function buildPipSegments(mediaDir, totalDuration) {
+  const pipMapFile = path.join(mediaDir, "pip-blocks.json");
+  if (!fs.existsSync(pipMapFile)) return null;
+  let pipMap;
+  try {
+    pipMap = JSON.parse(fs.readFileSync(pipMapFile, "utf-8"));
+  } catch (e) {
+    console.warn("[PREP] pip-blocks.json inválido:", e.message);
+    return null;
+  }
+  const audios = fs.readdirSync(mediaDir)
+    .filter((f) => /^audio-\d+\.(mp3|m4a|wav|aac)$/i.test(f))
+    .sort();
+  if (!audios.length) return null;
+  const durs = audios.map((af) => mediaDuration(path.resolve(mediaDir, af)));
+  const somaDurs = durs.reduce((a, d) => a + d, 0) || 1;
+  const sobra = totalDuration - somaDurs; // fecha o arredondamento no último bloco (igual distribuirPorBlocoSeHouver)
+  const durBloco = (i) => durs[i] + (i === audios.length - 1 ? sobra : 0);
+
+  const segments = [];
+  let acc = 0;
+  for (let i = 0; i < audios.length; i++) {
+    const dur = durBloco(i);
+    const pipArquivo = pipMap[String(i)];
+    if (pipArquivo) {
+      const absPath = resolveMedia(pipArquivo, `PiP bloco ${i + 1}`);
+      segments.push({ src: toFileUrl(absPath), startSec: +acc.toFixed(2), durationSec: +dur.toFixed(2) });
+    }
+    acc += dur;
+  }
+  if (segments.length) {
+    console.log(`[PREP] PiP: ${segments.length} janela(s) de vídeo entre ${audios.length} bloco(s).`);
+  }
+  return segments.length ? segments : null;
+}
 
 // Complemento das janelas de overlay dentro de [0, totalDuration]: os trechos em que o
 // vídeo de fundo contínuo fica DE FATO visível (sem nenhuma mídia por cima tapando).
@@ -424,6 +466,7 @@ if (referenciaMode) {
     totalDuration = Math.ceil(mediaDuration(audioPath));
     if (!totalDuration) throw new Error("Não consegui medir a duração da narração (narration.m4a).");
     console.log(`[PREP] Modo NARRAÇÃO — duração ${totalDuration}s`);
+    PIP_SEGMENTS = buildPipSegments(mediaDir, totalDuration);
   } else {
     pipFile = process.env.MAIN_VIDEO || job.mainVideo || job.portrait;
     pipPath = resolveMedia(pipFile, "mainVideo");
@@ -439,6 +482,7 @@ if (referenciaMode) {
     if (pipFile) reserved.add(path.basename(pipFile));
     wideInput = fs.readdirSync(mediaDir).filter((f) => {
       if (reserved.has(f)) return false;
+      if (/^pip-\d+\./i.test(f)) return false; // vídeo do PiP do apresentador — não é mídia de fundo
       const ext = path.extname(f).toLowerCase();
       return VIDEO_EXTS.has(ext) || IMAGE_EXTS.has(ext);
     }).sort();
@@ -536,6 +580,7 @@ if (referenciaMode) {
     props.showCopyrightWatermark = true;
     if (watermarkWindows) props.watermarkWindows = watermarkWindows;
   }
+  if (PIP_SEGMENTS && PIP_SEGMENTS.length) props.pipSegments = PIP_SEGMENTS;
 } else {
   props.pipVideoSrc = toFileUrl(pipPath);
   props.showEndExpand = showEndExpand;

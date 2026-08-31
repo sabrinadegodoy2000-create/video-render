@@ -8,6 +8,12 @@ import { resolveStandings } from "./f1TeamStyles";
 
 export type F1Segment = { src: string; type: "photo" | "video"; durationSec: number; startSec?: number; noFx?: boolean };
 
+// Janela em que o apresentador aparece em PiP na faixa lateral (toma o lugar do bloco do
+// próximo GP enquanto dura — ver F1_BROADCAST no bloco "próximo GP / PiP" mais abaixo).
+// `durationSec` deve ser a duração REAL do vídeo (não mais que isso) — senão o Remotion
+// prende no último frame até a janela acabar, em vez de já ter saído de cena.
+export type PipSegment = { src: string; startSec: number; durationSec: number };
+
 export type Driver = { name: string; photoSrc?: string };
 
 export type F1BroadcastProps = {
@@ -25,6 +31,7 @@ export type F1BroadcastProps = {
   audioSrc?: string;          // narração (áudios já concatenados)
   nextGP?: GPInfo;            // próximo GP — base da faixa vertical
   trackPath?: string;         // traçado SVG do circuito
+  pipSegments?: PipSegment[]; // apresentador em PiP — janelas que tomam o lugar do próximo GP
   showSubscribe?: boolean;    // barra de inscrição (mãozinha clicando) em ciclo
   subscribeCycleSec?: number; // de quanto em quanto tempo a barra reaparece (default 30)
   bigAudio?: boolean;         // toca o áudio do vídeo de fundo (modo "vídeo grande")
@@ -115,6 +122,7 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   audioSrc,
   nextGP,
   trackPath,
+  pipSegments,
   showSubscribe = false,
   subscribeCycleSec = 30,
   bigAudio = false,
@@ -146,6 +154,23 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   // resolve cor/logo das equipes a partir do constructorId (classificação automática)
   const resolvedStandings = resolveStandings(standings);
 
+  // ── PiP do apresentador: "porta corrediça" na faixa vertical. O painel do meio
+  // (logo + classificação) é OPACO e desliza pra baixo quando o PiP está ativo,
+  // descobrindo o PiP (que mora fixo no topo) e cobrindo o próximo GP (que mora
+  // fixo no rodapé) — e vice-versa quando o PiP termina. Nada precisa de opacidade
+  // própria: é só esse painel opaco cobrindo/descobrindo o que está atrás dele.
+  // pipShift vai de 0 (painel no topo, comportamento de sempre) a 1 (painel
+  // deslocado pro fundo, PiP visível) — contido DENTRO da janela do PiP, então
+  // nunca precisa esticar além da duração real do vídeo (não prende no último frame).
+  const PIP_SLIDE_SEC = 0.4;
+  const activePip = pipSegments?.find((s) => t >= s.startSec && t < s.startSec + s.durationSec);
+  const pipShift = activePip
+    ? Math.min(
+        interpolate(t, [activePip.startSec, activePip.startSec + PIP_SLIDE_SEC], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
+        interpolate(t, [activePip.startSec + activePip.durationSec - PIP_SLIDE_SEC, activePip.startSec + activePip.durationSec], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })
+      )
+    : 0;
+
   // ── Layout "L invertido" (1920x1080): vídeo full-bleed no buraco do L ──
   // faixa vertical (direita, altura toda) + faixa horizontal (rodapé, até a vertical começar)
   const SIDE_W = 470;   // faixa vertical: logo + classificação + próximo GP
@@ -153,6 +178,9 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   const FADE = 130;     // esmaecimento do vídeo pro painel — continuidade, sem linha de corte
   const LOGO_H = 156;   // bloco do logo, topo da faixa vertical
   const GP_H = 300;     // bloco do próximo GP, base da faixa vertical
+  const PIP_H = GP_H;   // bloco do PiP, topo da faixa vertical (mesmo tamanho do GP — a
+                         // faixa toda soma 1080 nos dois estados, sem sobrar nem faltar espaço)
+  const CLASS_H = 1080 - LOGO_H - GP_H; // altura da classificação, IGUAL nos dois estados
 
   const mediaW = 1920 - SIDE_W;
   const mediaH = 1080 - BOTTOM_H;
@@ -249,30 +277,54 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
 
       {audioSrc ? <Audio src={audioSrc} /> : null}
 
-      {/* ── FAIXA VERTICAL (direita, altura toda): logo → classificação → próximo GP ── */}
-      <div style={{ position: "absolute", left: sideXAnim, top: 0, width: SIDE_W, height: 1080, background: PANEL_BG_SIDE, display: "flex", flexDirection: "column", overflow: "hidden", opacity: panelOpacity }}>
+      {/* ── FAIXA VERTICAL (direita, altura toda) ──────────────────────────
+          3 camadas fixas empilhadas: PiP (topo) atrás, próximo GP (rodapé) atrás,
+          e o painel opaco logo+classificação por CIMA dos dois, deslizando entre
+          "no topo" (pipShift=0, cobre o PiP e descobre o GP — padrão) e "deslocado
+          pro fundo" (pipShift=1, descobre o PiP e cobre o GP). */}
+      <div style={{ position: "absolute", left: sideXAnim, top: 0, width: SIDE_W, height: 1080, background: PANEL_BG_SIDE, overflow: "hidden", opacity: panelOpacity }}>
 
-        {/* logo do programa — só um traço curto por baixo (não uma parede full-width) */}
-        <div style={{ height: LOGO_H, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "22px 28px 14px" }}>
-          {programLogoSrc ? (
-            <Img src={programLogoSrc} style={{ maxWidth: "100%", maxHeight: "82%", objectFit: "contain" }} />
-          ) : (
-            <span style={{ fontFamily: HEAD_FONT, fontSize: 34, color: FERRARI_YELLOW, lineHeight: 0.95, textAlign: "center" }}>MONDO<br />FERRARI</span>
-          )}
-          <div style={{ width: 64, height: 3, marginTop: 12, background: FERRARI_YELLOW }} />
+        {/* PiP do apresentador — fixo no topo; só aparece quando o painel do meio
+            desliza pra baixo e descobre essa área. */}
+        <div style={{ position: "absolute", left: 0, top: 0, width: SIDE_W, height: PIP_H, background: "#000" }}>
+          {pipSegments?.map((seg, i) => (
+            <Sequence key={i} from={Math.round(seg.startSec * fps)} durationInFrames={Math.round(seg.durationSec * fps)} layout="none">
+              <OffthreadVideo src={seg.src} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            </Sequence>
+          ))}
         </div>
 
-        {/* classificação — preenche o espaço que sobra */}
-        <div style={{ flex: 1, minHeight: 0 }}>
-          <DriverStandings width={SIDE_W} height={1080 - LOGO_H - GP_H} standings={resolvedStandings} />
-        </div>
-
-        {/* próximo GP — base da faixa */}
-        {nextGP && trackPath ? (
-          <div style={{ height: GP_H, flexShrink: 0 }}>
+        {/* próximo GP — fixo no rodapé; só aparece quando o painel do meio desliza
+            de volta pro topo e descobre essa área (comportamento de sempre, sem PiP).
+            Fica DESMONTADO (não só coberto) enquanto o PiP domina a área: o TrackMap3D
+            usa transform 3D (perspective/rotateX/preserve-3d) pra girar a pista, e isso
+            escapa do overflow:hidden do painel que devia escondê-lo atrás da classificação
+            — desmontar de vez evita esse vazamento visual. */}
+        {nextGP && trackPath && pipShift < 0.5 ? (
+          <div style={{ position: "absolute", left: 0, top: 1080 - GP_H, width: SIDE_W, height: GP_H }}>
             <TrackMap3D width={SIDE_W} height={GP_H} gp={nextGP} trackPath={trackPath} stacked />
           </div>
         ) : null}
+
+        {/* logo + classificação — painel OPACO que desliza entre top:0 (padrão) e
+            top:PIP_H (PiP ativo), cobrindo/descobrindo o que está atrás dele. */}
+        <div style={{ position: "absolute", left: 0, top: pipShift * PIP_H, width: SIDE_W, height: LOGO_H + CLASS_H, background: PANEL_BG_SIDE, display: "flex", flexDirection: "column" }}>
+          {/* logo do programa — só um traço curto por baixo (não uma parede full-width) */}
+          <div style={{ height: LOGO_H, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "22px 28px 14px" }}>
+            {programLogoSrc ? (
+              <Img src={programLogoSrc} style={{ maxWidth: "100%", maxHeight: "82%", objectFit: "contain" }} />
+            ) : (
+              <span style={{ fontFamily: HEAD_FONT, fontSize: 34, color: FERRARI_YELLOW, lineHeight: 0.95, textAlign: "center" }}>MONDO<br />FERRARI</span>
+            )}
+            <div style={{ width: 64, height: 3, marginTop: 12, background: FERRARI_YELLOW }} />
+          </div>
+
+          {/* classificação — mesma altura sempre (CLASS_H), o scroll dela já dá conta
+              de mostrar todo mundo mesmo com menos linhas visíveis por vez */}
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <DriverStandings width={SIDE_W} height={CLASS_H} standings={resolvedStandings} />
+          </div>
+        </div>
       </div>
 
       {/* ── FAIXA HORIZONTAL (rodapé, até a faixa vertical começar): manchete (só existe se houver) ── */}

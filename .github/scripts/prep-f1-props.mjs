@@ -546,6 +546,57 @@ const showSubscribe = !["0", "false", "no", "off", "nao", "não"].includes(Strin
 // Se não vier, cai no par único HEADLINE/SUBHEADLINE (manchete fixa).
 const headlines = parseHeadlines(process.env.HEADLINES_JSON);
 
+// ── Vinheta (só modo narração): entra em tela cheia logo após o 1º áudio, e se o vídeo
+// ficar abaixo de VINHETA_MIN_SEC, entra de novo no fim seguida do último frame congelado.
+// Tudo o que vem depois do 1º áudio é empurrado pra frente pela duração da vinheta.
+const VINHETA_MIN_SEC = 483; // 8:03
+let vinhetaProps = null;
+const vinhetaFile = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "../../remotion/public/vinheta-mondo-ferrari.mp4");
+if (fullscreen && fs.existsSync(vinhetaFile)) {
+  const firstAudio = fs.readdirSync(mediaDir).filter((f) => /^audio-\d+\.(mp3|m4a|wav|aac)$/i.test(f)).sort()[0];
+  const V = mediaDuration(vinhetaFile);
+  const d1 = firstAudio ? mediaDuration(path.resolve(mediaDir, firstAudio)) : 0;
+  if (V > 0 && d1 > 0 && d1 < totalDuration) {
+    // abre um buraco de V segundos em d1 na sequência do quadro grande (fica sob a vinheta)
+    const filler = (dur) => ({ src: bigSegments[0]?.src, type: bigSegments[0]?.type || "photo", durationSec: +dur.toFixed(2) });
+    let acc = 0;
+    for (let i = 0; i < bigSegments.length; i++) {
+      const s = bigSegments[i];
+      if (acc + s.durationSec > d1) {
+        const before = +(d1 - acc).toFixed(2);
+        const after = +(s.durationSec - before).toFixed(2);
+        const parts = [];
+        if (before > 0.05) parts.push({ ...s, durationSec: before });
+        parts.push(filler(V));
+        if (after > 0.05) {
+          const rest = { ...s, durationSec: after };
+          if (s.type === "video") rest.startSec = +((s.startSec || 0) + before).toFixed(2);
+          parts.push(rest);
+        }
+        bigSegments.splice(i, 1, ...parts);
+        break;
+      }
+      acc += s.durationSec;
+    }
+    const shift = (arr) => (arr || []).forEach((o) => { if (o.startSec >= d1) o.startSec = +(o.startSec + V).toFixed(2); });
+    shift(PHOTO_OVERLAYS); shift(PIP_SEGMENTS); shift(watermarkWindows);
+
+    const semVinhetaFinal = totalDuration + V;
+    vinhetaProps = { atSec: +d1.toFixed(2), durSec: +V.toFixed(2) };
+    let finalDur = semVinhetaFinal;
+    if (semVinhetaFinal < VINHETA_MIN_SEC) {
+      vinhetaProps.tailAtSec = +semVinhetaFinal.toFixed(2);
+      finalDur = Math.max(VINHETA_MIN_SEC, semVinhetaFinal + V);
+    }
+    const sobra = finalDur - semVinhetaFinal;
+    if (sobra > 0.05) bigSegments.push(filler(sobra));
+    totalDuration = Math.ceil(finalDur);
+    console.log(`[PREP] Vinheta: após 1º áudio (${d1.toFixed(1)}s, ${V.toFixed(1)}s)` +
+      (vinhetaProps.tailAtSec !== undefined ? ` + no fim (${vinhetaProps.tailAtSec}s) com frame congelado até ${totalDuration}s` : "") +
+      ` — duração final ${totalDuration}s`);
+  }
+}
+
 const props = {
   bigSegments,
   durationSec: totalDuration,
@@ -581,6 +632,7 @@ if (referenciaMode) {
     if (watermarkWindows) props.watermarkWindows = watermarkWindows;
   }
   if (PIP_SEGMENTS && PIP_SEGMENTS.length) props.pipSegments = PIP_SEGMENTS;
+  if (vinhetaProps) props.vinheta = vinhetaProps;
 } else {
   props.pipVideoSrc = toFileUrl(pipPath);
   props.showEndExpand = showEndExpand;

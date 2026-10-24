@@ -32,6 +32,10 @@ export type F1BroadcastProps = {
   nextGP?: GPInfo;            // próximo GP — base da faixa vertical
   trackPath?: string;         // traçado SVG do circuito
   pipSegments?: PipSegment[]; // apresentador em PiP — janelas que tomam o lugar do próximo GP
+  // vinheta em tela cheia (com o som dela) logo depois do 1º áudio da narração, e de novo
+  // no fim se o vídeo não chegar no mínimo — seguida do último frame congelado até acabar.
+  // atSec = onde entra (fim do 1º áudio); a narração pausa durante durSec e retoma depois.
+  vinheta?: { atSec: number; durSec: number; tailAtSec?: number };
   showSubscribe?: boolean;    // barra de inscrição (mãozinha clicando) em ciclo
   subscribeCycleSec?: number; // de quanto em quanto tempo a barra reaparece (default 30)
   bigAudio?: boolean;         // toca o áudio do vídeo de fundo (modo "vídeo grande")
@@ -123,6 +127,7 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   nextGP,
   trackPath,
   pipSegments,
+  vinheta,
   showSubscribe = false,
   subscribeCycleSec = 30,
   bigAudio = false,
@@ -275,7 +280,17 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
         />
       </div>
 
-      {audioSrc ? <Audio src={audioSrc} /> : null}
+      {audioSrc && vinheta ? (
+        <>
+          {/* narração cortada em 2: até a vinheta, e retomando do mesmo ponto depois dela */}
+          <Sequence from={0} durationInFrames={Math.max(1, Math.round(vinheta.atSec * fps))} layout="none">
+            <Audio src={audioSrc} />
+          </Sequence>
+          <Sequence from={Math.round((vinheta.atSec + vinheta.durSec) * fps)} layout="none">
+            <Audio src={audioSrc} trimBefore={Math.round(vinheta.atSec * fps)} />
+          </Sequence>
+        </>
+      ) : audioSrc ? <Audio src={audioSrc} /> : null}
 
       {/* ── FAIXA VERTICAL (direita, altura toda) ──────────────────────────
           3 camadas fixas empilhadas: PiP (topo) atrás, próximo GP (rodapé) atrás,
@@ -349,6 +364,26 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
           avatarSrc={staticFile("logo-estranho.png")}
           cycleSec={subscribeCycleSec}
         />
+      ) : null}
+
+      {/* ── Vinheta em tela cheia, por cima de tudo ── */}
+      {vinheta ? (
+        <>
+          <Sequence from={Math.round(vinheta.atSec * fps)} durationInFrames={Math.round(vinheta.durSec * fps)} layout="none">
+            <OffthreadVideo src={staticFile("vinheta-mondo-ferrari.mp4")} style={{ position: "absolute", inset: 0, width: 1920, height: 1080, objectFit: "cover", zIndex: 100 }} />
+          </Sequence>
+          {vinheta.tailAtSec !== undefined ? (
+            <>
+              <Sequence from={Math.round(vinheta.tailAtSec * fps)} durationInFrames={Math.round(vinheta.durSec * fps)} layout="none">
+                <OffthreadVideo src={staticFile("vinheta-mondo-ferrari.mp4")} style={{ position: "absolute", inset: 0, width: 1920, height: 1080, objectFit: "cover", zIndex: 100 }} />
+              </Sequence>
+              {/* depois da vinheta final: último frame congelado até o vídeo acabar */}
+              <Sequence from={Math.round((vinheta.tailAtSec + vinheta.durSec) * fps)} layout="none">
+                <Img src={staticFile("vinheta-mondo-ferrari-final.png")} style={{ position: "absolute", inset: 0, width: 1920, height: 1080, objectFit: "cover", zIndex: 100 }} />
+              </Sequence>
+            </>
+          ) : null}
+        </>
       ) : null}
     </div>
   );

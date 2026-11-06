@@ -51,9 +51,9 @@ on:
         default: "true"
         type: string
       concurrency:
-        description: "Núcleos usados no render (1-2). O runner gratuito do GitHub tem 2 núcleos."
+        description: "Núcleos usados no render. Repositório público: o runner tem 4 núcleos."
         required: false
-        default: "2"
+        default: "4"
         type: string
 
 permissions:
@@ -62,9 +62,14 @@ permissions:
 jobs:
   render:
     runs-on: ubuntu-22.04
-    timeout-minutes: 320  # até ~5h20 (limite do GitHub é 6h por job)
+    timeout-minutes: 350  # até ~5h50 (limite do GitHub é 6h por job)
 
     steps:
+      - name: Recursos do runner
+        run: |
+          echo "núcleos: $(nproc)"
+          free -h | head -2
+
       - name: Checkout do repositório
         uses: actions/checkout@v4
 

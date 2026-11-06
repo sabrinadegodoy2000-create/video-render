@@ -83,13 +83,12 @@ const HEAD_FONT = FONT;
 const SUB_FONT = FONT;
 
 // Mídia com blur fill: fundo borrado (cover) + mídia inteira na frente (contain).
-// fx (só vídeo): espelha na horizontal + blur leve na frente — pra descaracterizar
-// material reaproveitado.
+// fx (só vídeo): espelha na horizontal — pra descaracterizar material reaproveitado
+// sem borrar a imagem.
 const BlurFillMedia: React.FC<{ src: string; isVideo: boolean; muted?: boolean; trimBefore?: number; fx?: boolean }> = ({ src, isVideo, muted = true, trimBefore, fx }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const flip = fx && isVideo ? "scaleX(-1)" : undefined;
-  const fgFilter = fx && isVideo ? "blur(3px)" : undefined;
   // zoom lento (ken-burns) só nas FOTOS — dá vida sem exagerar. Cresce ~1.1%/s (cap 10s).
   const photoZoom = isVideo ? 1 : 1 + Math.min(frame / fps, 10) * 0.011;
   const photoTransform = isVideo ? undefined : `scale(${photoZoom.toFixed(4)})`;
@@ -103,7 +102,7 @@ const BlurFillMedia: React.FC<{ src: string; isVideo: boolean; muted?: boolean; 
       )}
       {/* mídia inteira (sem cortar) */}
       {isVideo ? (
-        <OffthreadVideo src={src} muted={muted} trimBefore={trimBefore} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", transform: flip, filter: fgFilter }} />
+        <OffthreadVideo src={src} muted={muted} trimBefore={trimBefore} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", transform: flip }} />
       ) : (
         <Img src={src} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", transform: photoTransform }} />
       )}

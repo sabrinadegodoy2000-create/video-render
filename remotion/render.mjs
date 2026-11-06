@@ -9,8 +9,18 @@ import path from "path";
 import fs from "fs";
 import http from "http";
 import { fileURLToPath } from "url";
+import os from "os";
+import { execFile } from "child_process";
+import { promisify } from "util";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const execFileAsync = promisify(execFile);
+
+function localPathFromFileUrl(url) {
+  let filePath = decodeURIComponent(url.slice("file://".length));
+  if (process.platform === "win32" && /^\/[A-Za-z]:\//.test(filePath)) filePath = filePath.slice(1);
+  return filePath;
+}
 
 // Parse args
 const args = process.argv.slice(2);
@@ -106,13 +116,11 @@ function convertFileUrls(obj, mediaBaseUrl) {
   if (typeof obj === 'string') {
     // aceita file:///opt/x (Linux, 3 barras) E file://C:/x (Windows local, 2 barras)
     if (obj.startsWith('file://')) {
-      let filePath = obj.slice('file://'.length); // remove só "file://"
+      let filePath = localPathFromFileUrl(obj);
       // Linux: file:///opt → "/opt" (mantém a barra). Windows: file://C:/x → "C:/x".
       if (!filePath.startsWith('/') && !filePath.match(/^[A-Za-z]:/)) {
         filePath = '/' + filePath;
       }
-      // Decodifica %20 etc.
-      filePath = decodeURIComponent(filePath);
       return `${mediaBaseUrl}/media?path=${encodeURIComponent(filePath)}`;
     }
     return obj;
@@ -130,6 +138,37 @@ function convertFileUrls(obj, mediaBaseUrl) {
   return obj;
 }
 
+// Um frame estático substitui o segundo OffthreadVideo usado só no fundo borrado.
+// O mesmo arquivo/posição é extraído uma única vez, mesmo quando aparece em vários blocos.
+async function prepareF1BlurPosters(inputProps, mediaBaseUrl, posterDir) {
+  if (!Array.isArray(inputProps.bigSegments)) return;
+  const tasks = new Map();
+  for (const seg of inputProps.bigSegments) {
+    if (seg.type !== "video" || typeof seg.src !== "string" || !seg.src.startsWith("file://")) continue;
+    const source = localPathFromFileUrl(seg.src);
+    const at = Math.max(0, Number(seg.startSec) || 0);
+    const key = `${source}\0${at}`;
+    if (!tasks.has(key)) tasks.set(key, { source, at, output: path.join(posterDir, `poster-${tasks.size}.jpg`), segments: [] });
+    tasks.get(key).segments.push(seg);
+  }
+  const queue = [...tasks.values()];
+  let cursor = 0;
+  await Promise.all(Array.from({ length: Math.min(4, queue.length) }, async () => {
+    while (cursor < queue.length) {
+      const task = queue[cursor++];
+      try {
+        await execFileAsync("ffmpeg", ["-y", "-loglevel", "error", "-ss", String(task.at), "-i", task.source,
+          "-frames:v", "1", "-vf", "scale=720:-2", "-q:v", "4", task.output], { timeout: 30000 });
+        const url = `${mediaBaseUrl}/media?path=${encodeURIComponent(task.output)}`;
+        for (const seg of task.segments) seg.blurPosterSrc = url;
+      } catch (error) {
+        console.warn(`[REMOTION] Poster indisponível para ${path.basename(task.source)}: ${error.message}`);
+      }
+    }
+  }));
+  console.log(`[REMOTION] Fundos estáticos prontos: ${queue.filter((task) => fs.existsSync(task.output)).length}/${queue.length}`);
+}
+
 async function main() {
   console.log(`[REMOTION] Lendo props de ${propsFile}...`);
   let inputProps = JSON.parse(fs.readFileSync(propsFile, "utf-8"));
@@ -137,54 +176,59 @@ async function main() {
   // Inicia media server e converte file:// URLs
   const { server, port } = await startMediaServer();
   const mediaBaseUrl = `http://127.0.0.1:${port}`;
-  inputProps = convertFileUrls(inputProps, mediaBaseUrl);
+  const posterDir = fs.mkdtempSync(path.join(os.tmpdir(), "remotion-f1-posters-"));
+  try {
+    if (compositionId === "F1Broadcast") await prepareF1BlurPosters(inputProps, mediaBaseUrl, posterDir);
+    inputProps = convertFileUrls(inputProps, mediaBaseUrl);
 
-  console.log("[REMOTION] Empacotando bundle...");
-  const bundleLocation = await bundle({
-    entryPoint: path.resolve(__dirname, "src/index.ts"),
-    webpackOverride: (config) => config,
-  });
+    console.log("[REMOTION] Empacotando bundle...");
+    const bundleLocation = await bundle({
+      entryPoint: path.resolve(__dirname, "src/index.ts"),
+      webpackOverride: (config) => config,
+    });
 
-  console.log(`[REMOTION] Selecionando composição "${compositionId}"...`);
-  const composition = await selectComposition({
-    serveUrl: bundleLocation,
-    id: compositionId,
-    inputProps,
-  });
+    console.log(`[REMOTION] Selecionando composição "${compositionId}"...`);
+    const composition = await selectComposition({
+      serveUrl: bundleLocation,
+      id: compositionId,
+      inputProps,
+    });
 
-  console.log(`[REMOTION] Renderizando ${composition.durationInFrames} frames (${composition.fps}fps, scale=${scale})...`);
-  const startTime = Date.now();
+    console.log(`[REMOTION] Renderizando ${composition.durationInFrames} frames (${composition.fps}fps, scale=${scale})...`);
+    const startTime = Date.now();
 
-  const browserExecutable = process.env.REMOTION_CHROME_EXECUTABLE_PATH || undefined;
+    const browserExecutable = process.env.REMOTION_CHROME_EXECUTABLE_PATH || undefined;
 
-  if (browserExecutable) {
-    console.log(`[REMOTION] Usando browser custom: ${browserExecutable}`);
+    if (browserExecutable) {
+      console.log(`[REMOTION] Usando browser custom: ${browserExecutable}`);
+    }
+
+    await renderMedia({
+      composition,
+      serveUrl: bundleLocation,
+      codec: "h264",
+      outputLocation: outputFile,
+      inputProps,
+      concurrency,
+      scale,
+      timeoutInMilliseconds: 90000,
+      chromiumOptions: {
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      },
+      ...(browserExecutable ? { browserExecutable } : {}),
+      onProgress: ({ progress }) => {
+        const pct = (progress * 100).toFixed(1);
+        process.stdout.write(`\r[REMOTION] Progresso: ${pct}%`);
+      },
+    });
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`\n[REMOTION] Renderizado em ${elapsed}s → ${outputFile}`);
+
+  } finally {
+    server.close();
+    fs.rmSync(posterDir, { recursive: true, force: true });
   }
-
-  await renderMedia({
-    composition,
-    serveUrl: bundleLocation,
-    codec: "h264",
-    outputLocation: outputFile,
-    inputProps,
-    concurrency,
-    scale,
-    timeoutInMilliseconds: 90000,
-    chromiumOptions: {
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    },
-    ...(browserExecutable ? { browserExecutable } : {}),
-    onProgress: ({ progress }) => {
-      const pct = (progress * 100).toFixed(1);
-      process.stdout.write(`\r[REMOTION] Progresso: ${pct}%`);
-    },
-  });
-
-  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-  console.log(`\n[REMOTION] Renderizado em ${elapsed}s → ${outputFile}`);
-
-  // Encerra o media server
-  server.close();
 }
 
 main().catch((err) => {

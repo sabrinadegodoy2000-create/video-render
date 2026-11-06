@@ -5,8 +5,9 @@ import { SubscribeBar } from "./SubscribePopup";
 import { pickHeadline, hasHeadlineContent, HeadlineItem } from "./rotatingHeadline";
 import { PhotoPunchOverlays, PhotoOverlayItem } from "./PhotoPunchOverlay";
 import { resolveStandings } from "./f1TeamStyles";
+import { useMemo } from "react";
 
-export type F1Segment = { src: string; type: "photo" | "video"; durationSec: number; startSec?: number; noFx?: boolean };
+export type F1Segment = { src: string; type: "photo" | "video"; durationSec: number; startSec?: number; noFx?: boolean; blurPosterSrc?: string };
 
 // Janela em que o apresentador aparece em PiP na faixa lateral (toma o lugar do bloco do
 // próximo GP enquanto dura — ver F1_BROADCAST no bloco "próximo GP / PiP" mais abaixo).
@@ -85,7 +86,7 @@ const SUB_FONT = FONT;
 // Mídia com blur fill: fundo borrado (cover) + mídia inteira na frente (contain).
 // fx (só vídeo): espelha na horizontal — pra descaracterizar material reaproveitado
 // sem borrar a imagem.
-const BlurFillMedia: React.FC<{ src: string; isVideo: boolean; muted?: boolean; trimBefore?: number; fx?: boolean }> = ({ src, isVideo, muted = true, trimBefore, fx }) => {
+const BlurFillMedia: React.FC<{ src: string; isVideo: boolean; muted?: boolean; trimBefore?: number; fx?: boolean; blurPosterSrc?: string }> = ({ src, isVideo, muted = true, trimBefore, fx, blurPosterSrc }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const flip = fx && isVideo ? "scaleX(-1)" : undefined;
@@ -95,10 +96,10 @@ const BlurFillMedia: React.FC<{ src: string; isVideo: boolean; muted?: boolean; 
   return (
     <>
       {/* fundo borrado e escurecido */}
-      {isVideo ? (
+      {isVideo && !blurPosterSrc ? (
         <OffthreadVideo src={src} muted trimBefore={trimBefore} style={{ position: "absolute", inset: -30, width: "calc(100% + 60px)", height: "calc(100% + 60px)", objectFit: "cover", filter: "blur(22px) brightness(0.5)", transform: flip }} />
       ) : (
-        <Img src={src} style={{ position: "absolute", inset: -30, width: "calc(100% + 60px)", height: "calc(100% + 60px)", objectFit: "cover", filter: "blur(22px) brightness(0.5)", transform: photoTransform }} />
+        <Img src={blurPosterSrc || src} style={{ position: "absolute", inset: -30, width: "calc(100% + 60px)", height: "calc(100% + 60px)", objectFit: "cover", filter: "blur(22px) brightness(0.5)", transform: isVideo ? flip : photoTransform }} />
       )}
       {/* mídia inteira (sem cortar) */}
       {isVideo ? (
@@ -188,6 +189,15 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
 
   const mediaW = 1920 - SIDE_W;
   const mediaH = 1080 - BOTTOM_H;
+  const scheduledSegments = useMemo(() => {
+    let nextSegmentFrame = 0;
+    return bigSegments.map((seg, i) => {
+      const durationFrames = Math.round(seg.durationSec * fps);
+      const scheduled = { seg, i, startFrame: nextSegmentFrame, durationFrames };
+      nextSegmentFrame += durationFrames;
+      return scheduled;
+    });
+  }, [bigSegments, fps]);
 
   // ── Flourish final: painéis somem nos últimos 4s, vídeo fica full-bleed puro ──
   const totalFrames = Math.round(durationSec * fps);
@@ -208,19 +218,15 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
       <div style={{ position: "absolute", left: 0, top: 0, width: mediaW, height: mediaH, overflow: "hidden", background: PANEL_BG }}>
         {bigSegments.length > 0 ? (
           <>
-            {bigSegments.map((seg, i) => {
-              const start = bigSegments.slice(0, i).reduce((a, s) => a + Math.round(s.durationSec * fps), 0);
-              const dur = Math.round(seg.durationSec * fps);
-              return (
-                <Sequence key={i} from={start} durationInFrames={dur} layout="none">
+            {scheduledSegments.map(({ seg, i, startFrame, durationFrames }) => (
+                <Sequence key={i} from={startFrame} durationInFrames={durationFrames} layout="none">
                   {/* fx (espelho+blur) descaracteriza material reaproveitado; no modo
                       vídeo grande (bigAudio) o vídeo é o destaque → deixa limpo.
                       Mídia vinda da media_library (seg.noFx) nunca leva o fx — é acervo
                       próprio do canal, não material de terceiros a descaracterizar. */}
-                  <BlurFillMedia src={seg.src} isVideo={seg.type === "video"} muted={!bigAudio} trimBefore={seg.startSec ? Math.round(seg.startSec * fps) : undefined} fx={!bigAudio && !seg.noFx} />
+                  <BlurFillMedia src={seg.src} isVideo={seg.type === "video"} muted={!bigAudio} trimBefore={seg.startSec ? Math.round(seg.startSec * fps) : undefined} fx={!bigAudio && !seg.noFx} blurPosterSrc={seg.blurPosterSrc} />
                 </Sequence>
-              );
-            })}
+            ))}
             {/* fotos punch-in em tela cheia por cima do vídeo de fundo contínuo */}
             <PhotoPunchOverlays overlays={photoOverlays} />
           </>

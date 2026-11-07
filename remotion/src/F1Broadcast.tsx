@@ -5,6 +5,7 @@ import { SubscribeBar } from "./SubscribePopup";
 import { pickHeadline, hasHeadlineContent, HeadlineItem } from "./rotatingHeadline";
 import { PhotoPunchOverlays, PhotoOverlayItem } from "./PhotoPunchOverlay";
 import { resolveStandings } from "./f1TeamStyles";
+import { MondoReferenceFooter, MondoReferenceSide, MondoReferenceStandings } from "./MondoReferenceVisual";
 import { useMemo } from "react";
 
 export type F1Segment = { src: string; type: "photo" | "video"; durationSec: number; startSec?: number; noFx?: boolean; blurPosterSrc?: string };
@@ -21,6 +22,7 @@ export type F1BroadcastProps = {
   bigSegments: F1Segment[];   // vídeo/fotos full-bleed (preenche o "buraco" do L)
   photoOverlays?: PhotoOverlayItem[]; // fotos punch-in por cima (modo vídeo de fundo contínuo)
   standings?: Standing[];     // classificação — faixa vertical direita
+  referenceVisual?: boolean;  // novo layout, exclusivo do fluxo Vídeo de referência do Mondo Ferrari
   programLogoSrc?: string;    // logo do programa — topo da faixa vertical
   backgroundSrc?: string;     // fallback: só aparece se bigSegments vier vazio
   headline?: string;          // manchete (italiano) — vazio = sem texto
@@ -115,6 +117,7 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   bigSegments,
   photoOverlays,
   standings = DEFAULT_STANDINGS,
+  referenceVisual = false,
   programLogoSrc = staticFile("logo-programa.png"),
   backgroundSrc = staticFile("fundo-tela.png"),
   headline = "",
@@ -154,7 +157,7 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
   const headlineList = headlines && headlines.length ? headlines : [{ headline, subheadline }];
   const hl = pickHeadline(headlineList, frame, fps, headlineRotateSec);
   // sem manchete em NENHUM ponto do vídeo → não reserva a faixa horizontal, vídeo toma tudo
-  const hasHeadline = hasHeadlineContent(headlineList);
+  const hasHeadline = referenceVisual || hasHeadlineContent(headlineList);
 
   // resolve cor/logo das equipes a partir do constructorId (classificação automática)
   const resolvedStandings = resolveStandings(standings);
@@ -297,12 +300,14 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
         </>
       ) : audioSrc ? <Audio src={audioSrc} /> : null}
 
+      {referenceVisual && <MondoReferenceStandings standings={resolvedStandings} />}
+
       {/* ── FAIXA VERTICAL (direita, altura toda) ──────────────────────────
           3 camadas fixas empilhadas: PiP (topo) atrás, próximo GP (rodapé) atrás,
           e o painel opaco logo+classificação por CIMA dos dois, deslizando entre
           "no topo" (pipShift=0, cobre o PiP e descobre o GP — padrão) e "deslocado
           pro fundo" (pipShift=1, descobre o PiP e cobre o GP). */}
-      <div style={{ position: "absolute", left: sideXAnim, top: 0, width: SIDE_W, height: 1080, background: PANEL_BG_SIDE, overflow: "hidden", opacity: panelOpacity }}>
+      {referenceVisual ? <MondoReferenceSide /> : <div style={{ position: "absolute", left: sideXAnim, top: 0, width: SIDE_W, height: 1080, background: PANEL_BG_SIDE, overflow: "hidden", opacity: panelOpacity }}>
 
         {/* PiP do apresentador — fixo no topo; só aparece quando o painel do meio
             desliza pra baixo e descobre essa área. */}
@@ -345,10 +350,10 @@ export const F1Broadcast: React.FC<F1BroadcastProps> = ({
             <DriverStandings width={SIDE_W} height={CLASS_H} standings={resolvedStandings} />
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* ── FAIXA HORIZONTAL (rodapé, até a faixa vertical começar): manchete (só existe se houver) ── */}
-      {hasHeadline ? (
+      {referenceVisual ? <MondoReferenceFooter headline={hl.headline} subheadline={hl.subheadline} opacity={hl.opacity} /> : hasHeadline ? (
         <div style={{ position: "absolute", left: 0, top: botYAnim, width: mediaW, height: BOTTOM_H, background: PANEL_BG_BOTTOM, display: "flex", alignItems: "center", overflow: "hidden", opacity: panelOpacity }}>
           <div style={{ flex: 1, padding: "0 44px", minWidth: 0, opacity: hl.opacity }}>
             <div style={{ fontFamily: HEAD_FONT, fontWeight: 900, fontSize: 48, color: "#fff", letterSpacing: 0.2, lineHeight: 1.0, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>

@@ -610,6 +610,7 @@ if (PHOTO_OVERLAYS && PHOTO_OVERLAYS.length) props.photoOverlays = PHOTO_OVERLAY
 
 if (referenciaMode) {
   props.fullscreenMode = true;
+  props.referenceVisual = true;
   props.audioSrc = toFileUrl(audioPath);
   props.showEndExpand = false;
 } else if (narracao2Mode) {

@@ -159,6 +159,11 @@ async function prepareF1BlurPosters(inputProps, mediaBaseUrl, posterDir) {
       try {
         await execFileAsync("ffmpeg", ["-y", "-loglevel", "error", "-ss", String(task.at), "-i", task.source,
           "-frames:v", "1", "-vf", "scale=720:-2", "-q:v", "4", task.output], { timeout: 30000 });
+        // ffmpeg pode sair com código 0 sem gravar nada (ex.: -ss depois do fim do clipe).
+        if (!fs.existsSync(task.output) || fs.statSync(task.output).size === 0) {
+          console.warn(`[REMOTION] Poster vazio para ${path.basename(task.source)} em ${task.at}s; usando o vídeo no fundo.`);
+          continue;
+        }
         const url = `${mediaBaseUrl}/media?path=${encodeURIComponent(task.output)}`;
         for (const seg of task.segments) seg.blurPosterSrc = url;
       } catch (error) {
